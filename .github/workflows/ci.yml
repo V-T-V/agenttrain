@@ -1,0 +1,48 @@
+# CI：类型检查 + 单元测试 + Lint + 格式检查
+# 在 push / PR 到 master 时触发，防止回归。
+
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+# 同分支新提交取消旧运行，省资源
+concurrency:
+  group: ci-agenttrain-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 安装 Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: agenttrain/package-lock.json
+
+      - name: 安装依赖
+        working-directory: agenttrain
+        run: npm install
+
+      - name: 类型检查
+        working-directory: agenttrain
+        run: npm run type-check
+
+      - name: 单元测试
+        working-directory: agenttrain
+        run: npm test
+
+      - name: Lint
+        working-directory: agenttrain
+        run: npm run lint
+
+      - name: 格式检查
+        working-directory: agenttrain
+        run: npm run format:check

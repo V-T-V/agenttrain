@@ -1,0 +1,36 @@
+{
+  "name": "agent-train",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "火车小游戏 —— TypeScript + Canvas 的 Mini Metro 风轨道调度经营",
+  "engines": {
+    "node": ">=20.19.0"
+  },
+  "scripts": {
+    "dev": "vite",
+    "dev:all": "concurrently -k -n web,ai \"vite\" \"tsx watch server/index.ts\"",
+    "server": "tsx watch server/index.ts",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "type-check": "tsc --noEmit",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\" \"server/**/*.ts\"",
+    "format:check": "prettier --check \"src/**/*.ts\" \"test/**/*.ts\" \"server/**/*.ts\"",
+    "test": "node --test --import tsx test/**/*.test.ts",
+    "test:run": "node --test --import tsx test/**/*.test.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "tsx": "^4.19.0",
+    "typescript": "~5.9.0",
+    "vite": "^5.4.0",
+    "concurrently": "^9.0.0",
+    "eslint": "^9.0.0",
+    "@eslint/js": "^9.0.0",
+    "typescript-eslint": "^8.0.0",
+    "eslint-config-prettier": "^9.0.0",
+    "prettier": "^3.0.0"
+  }
+}
