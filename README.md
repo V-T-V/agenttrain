@@ -183,7 +183,7 @@ AI 剧本解析容错、顾问建议映射、自动驾驶工具包装。
 | `npm run build` | 类型检查 + 生产构建到 `dist/` |
 | `npm run preview` | 预览生产构建 |
 | `npm run type-check` | `tsc --noEmit` |
-| `npm test` | 运行单元测试（60 个） |
+| `npm test` | 运行单元测试（84 个） |
 | `npm run lint` / `lint:fix` | ESLint 检查 / 自动修复 |
 | `npm run format` / `format:check` | Prettier 格式化 / 检查 |
 

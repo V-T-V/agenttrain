@@ -2,8 +2,9 @@
 // 负责把站点、线路、列车、乘客计数、HUD 和结束遮罩画到画布上。
 
 import { STATION_CAPACITY, STATION_RADIUS } from './game/config.ts';
-import type { GameState, LineColor, Shape, Station } from './game/types.ts';
+import type { GameState, LineColor, Shape, Station, Vec2 } from './game/types.ts';
 import { linePoints, trainPosition } from './game/simulation.ts';
+import { lerpVec2 } from './game/geometry.ts';
 import { describeActive } from './game/events.ts';
 import type { Advice } from './ai/advisor.ts';
 
@@ -31,6 +32,12 @@ export interface RenderOptions {
   aiMode?: 'manual' | 'auto';
   /** AI 状态文案（HUD 右下）。 */
   aiStatus?: string;
+  /**
+   * 固定步长累加器的插值因子 alpha = accumulator / FIXED_STEP，∈[0,1)。
+   * 渲染时用它在「上一帧逻辑位置」与「当前逻辑位置」间线性插值，
+   * 让列车在 >60Hz 屏幕上平滑移动而非阶梯式抖动。省略时退化为不插值。
+   */
+  alpha?: number;
 }
 
 /** 主绘制入口。 */
@@ -45,7 +52,7 @@ export function render(
   drawLines(ctx, state);
   drawDragPreview(ctx, options);
   drawPowerUps(ctx, state);
-  drawTrains(ctx, state);
+  drawTrains(ctx, state, options.alpha);
   drawStations(ctx, state);
   drawHud(ctx, state, width, options);
   drawInventory(ctx, state, width, height);
@@ -192,11 +199,28 @@ function drawInventory(
 
 // ---------- 列车 ----------
 
-function drawTrains(ctx: CanvasRenderingContext2D, state: GameState): void {
+/**
+ * 上一帧每列车的渲染位置缓存（按 lineId 索引，每条线至多一列车）。
+ * 用于帧间线性插值，消除 >60Hz 屏幕上列车阶梯式抖动。
+ * 模块级而非每帧重建：跨 render() 调用保持上一帧状态。
+ */
+const prevTrainPositions = new Map<number, Vec2>();
+
+function drawTrains(ctx: CanvasRenderingContext2D, state: GameState, alpha?: number): void {
+  const liveLineIds = new Set<number>();
   for (const train of state.trains) {
     const line = state.lines.find((l) => l.id === train.lineId);
     if (!line) continue;
-    const pos = trainPosition(state, train);
+    liveLineIds.add(train.lineId);
+
+    const curr = trainPosition(state, train);
+    // 停靠中（dwellTimer>0）位置不变，无需插值；否则在 prev→curr 间 lerp。
+    const prev = prevTrainPositions.get(train.lineId);
+    const pos =
+      alpha !== undefined && prev !== undefined && train.dwellTimer <= 0
+        ? lerpVec2(prev, curr, alpha)
+        : curr;
+    prevTrainPositions.set(train.lineId, curr);
     const color = LINE_CSS[line.color];
 
     // 车身
@@ -216,6 +240,10 @@ function drawTrains(ctx: CanvasRenderingContext2D, state: GameState): void {
     ctx.textBaseline = 'middle';
     ctx.fillText(String(train.passengers.length), 0, 0);
     ctx.restore();
+  }
+  // 清理已不存在的列车的陈旧缓存，防止 Map 无限增长。
+  for (const id of prevTrainPositions.keys()) {
+    if (!liveLineIds.has(id)) prevTrainPositions.delete(id);
   }
 }
 

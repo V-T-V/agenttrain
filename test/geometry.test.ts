@@ -5,6 +5,7 @@ import {
   closestPointOnSegment,
   dist,
   distToSegment,
+  lerpVec2,
   nearestSegmentIndex,
   positionAlong,
   segmentLength,
@@ -78,4 +79,21 @@ test('nearestSegmentIndex 选最近段', () => {
   // 点 (9,1) 离第 0 段近（水平段），点 (10,8) 离第 1 段近（竖直段）
   assert.equal(nearestSegmentIndex(pts, { x: 9, y: 1 }), 0);
   assert.equal(nearestSegmentIndex(pts, { x: 10, y: 8 }), 1);
+});
+
+test('lerpVec2 端点与中点', () => {
+  const a = { x: 0, y: 0 };
+  const b = { x: 10, y: 20 };
+  // t=0 返回 a，t=1 返回 b，t=0.5 返回中点
+  assert.deepEqual(lerpVec2(a, b, 0), { x: 0, y: 0 });
+  assert.deepEqual(lerpVec2(a, b, 1), { x: 10, y: 20 });
+  assert.deepEqual(lerpVec2(a, b, 0.5), { x: 5, y: 10 });
+});
+
+test('lerpVec2 t 被夹紧到 [0,1]', () => {
+  const a = { x: 0, y: 0 };
+  const b = { x: 10, y: 0 };
+  // t<0 夹到 0（返回 a），t>1 夹到 1（返回 b）
+  assert.deepEqual(lerpVec2(a, b, -1), { x: 0, y: 0 });
+  assert.deepEqual(lerpVec2(a, b, 2), { x: 10, y: 0 });
 });

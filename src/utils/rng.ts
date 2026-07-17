@@ -42,4 +42,24 @@ export class Rng {
     const idx = this.int(0, items.length - 1);
     return items[idx] as T;
   }
+
+  /**
+   * 导出当前内部状态（用于存档序列化）。
+   * 与种子不同：seed 是初始值，state 是经过若干次 next() 后的当前值。
+   * 续局时用 fromState(state) 重建实例，可保证随机序列连贯。
+   */
+  getState(): number {
+    return this.state >>> 0;
+  }
+
+  /**
+   * 从导出的内部状态重建 Rng 实例（存档续局用）。
+   * state 归一化到 uint32，0 退化值同样用黄金分割常数兜底（与构造函数一致）。
+   */
+  static fromState(state: number): Rng {
+    const r = Object.create(Rng.prototype) as Rng;
+    r['state'] = state >>> 0;
+    if (r['state'] === 0) r['state'] = 0x9e3779b9;
+    return r;
+  }
 }

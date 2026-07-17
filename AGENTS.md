@@ -21,7 +21,7 @@ Mini Metro 风的**火车调度小游戏**。画线连接站点，让列车把�
 - **AI 层**（src/ai/）：advisor（顾问）/ autopilot（自动驾驶）/ client / scenario / tools / types
 - **AI 后端**（server/）：index.ts + env.ts + retry.ts，autopilot 推理服务
 - **渲染/输入**（src/）：main.ts / render.ts / input.ts
-- **测试 7 个**：simulation / events / geometry / powerups / rng / scenario / advisor
+- **测试 8 个文件 / 84 个用例**：simulation / events / geometry / powerups / rng / scenario / advisor / persist
 
 `simulation.ts` 确认：line 46 `export function step(state, dt, rng): GameState`——纯函数式状态步进，不 import DOM。
 
@@ -47,7 +47,7 @@ npm run dev          # 仅 vite（游戏前端）
 npm run dev:all      # concurrently：vite + server（启用 AI 顾问/自动驾驶）
 npm run server       # 仅 AI 后端
 npm run build        # 生产构建
-npm test             # 7 个测试
+npm test             # 84 个测试用例
 npm run type-check / lint / format
 ```
 

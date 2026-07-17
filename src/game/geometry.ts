@@ -11,6 +11,15 @@ export function dist(a: Vec2, b: Vec2): number {
 }
 
 /**
+ * 两点间的线性插值。t∈[0,1]：0 返回 a，1 返回 b。
+ * 用于渲染层在高刷新率屏幕上做帧间列车位置插值，消除阶梯式抖动。
+ */
+export function lerpVec2(a: Vec2, b: Vec2, t: number): Vec2 {
+  const tt = Math.max(0, Math.min(1, t));
+  return { x: a.x + (b.x - a.x) * tt, y: a.y + (b.y - a.y) * tt };
+}
+
+/**
  * 给定一组有序站点坐标，计算列车当前位置。
  * @param points 线路上各站点的坐标（points.length >= 2）
  * @param segment 当前所在段索引（points[segment] -> points[segment+1]）

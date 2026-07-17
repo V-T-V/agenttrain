@@ -384,14 +384,34 @@ function pickColor(used: Set<LineColor>): LineColor {
   for (const c of order) {
     if (!used.has(c)) return c;
   }
-  return order[Math.floor(Math.random() * order.length)] ?? 'red';
+  // 7 色全用完：实际不可达（createLine 在 lines.length>=7 即 MAX_LINES 时已拦截）。
+  // 用确定性的顺序首位替代 Math.random，消除确定性漏洞（存档/回放可复现）。
+  return order[0]!;
+}
+
+/** 构建 station id → Station 的索引 Map，消除重复的 O(n) find 扫描。 */
+export function stationIndex(state: GameState): Map<number, Station> {
+  const m = new Map<number, Station>();
+  for (const s of state.stations) m.set(s.id, s);
+  return m;
 }
 
 /** 把线路的 stops 映射成坐标点序列（渲染与定位都用它）。 */
 export function linePoints(state: GameState, line: Line): Vec2[] {
+  // 站点数较多时，先建一次 Map 索引（O(n)）再 O(1) 查找，优于每站 find。
+  // 站点 ≤4 时直接 find 更省一次 Map 构建。
+  if (state.stations.length <= 4) {
+    const pts: Vec2[] = [];
+    for (const sid of line.stops) {
+      const st = state.stations.find((s) => s.id === sid);
+      if (st) pts.push({ x: st.pos.x, y: st.pos.y });
+    }
+    return pts;
+  }
+  const idx = stationIndex(state);
   const pts: Vec2[] = [];
   for (const sid of line.stops) {
-    const st = state.stations.find((s) => s.id === sid);
+    const st = idx.get(sid);
     if (st) pts.push({ x: st.pos.x, y: st.pos.y });
   }
   return pts;

@@ -12,6 +12,7 @@ import { step } from './game/simulation.ts';
 import { render, type RenderOptions } from './render.ts';
 import {
   beginDrag,
+  bindPointer,
   deleteLineNear,
   endDrag,
   stationAt,
@@ -28,15 +29,23 @@ import { askAdvice, type Advice } from './ai/advisor.ts';
 import { autopilotTick } from './ai/autopilot.ts';
 import { serializeSnapshot } from './ai/advisor.ts';
 import type { AIClient, Message } from './ai/types.ts';
+import { saveGame, loadGame, clearSave } from './game/persist.ts';
 
 const canvas = document.querySelector<HTMLCanvasElement>('#game')!;
 const ctx = canvas.getContext('2d')!;
 
-let state = createInitialState(Date.now() >>> 0);
-let rng = new Rng(state.seed);
+// 启动时尝试恢复存档：有则续局（含 Rng 状态，保证随机序列连贯），无则新开局。
+const restored = loadGame();
+let state = restored ? restored.state : createInitialState(Date.now() >>> 0);
+let rng = restored ? Rng.fromState(restored.rngState) : new Rng(state.seed);
 let drag: DragState | null = null;
 let accumulator = 0;
 let lastTime = performance.now();
+/** 自动存档倒计时（秒）：running 阶段每 AUTOSAVE_INTERVAL 秒存一次。 */
+const AUTOSAVE_INTERVAL = 5;
+let autosaveIn = AUTOSAVE_INTERVAL;
+/** gameover 时存档只清除一次的标志，避免每帧重复 clearSave。 */
+let gameoverSaveCleared = false;
 
 // AI 状态
 let ai: AIClient | null = null;
@@ -52,8 +61,14 @@ let nextAutopilotIn = 5;
 let adviceBusy = false;
 let autopilotBusy = false;
 
+/** 任意带 clientX/clientY 的事件（MouseEvent / Touch / PointerEvent）。 */
+interface ClientPoint {
+  clientX: number;
+  clientY: number;
+}
+
 /** 把窗口/画布坐标换算成世界坐标（这里 1:1，但预留缩放接口）。 */
-function toWorld(e: MouseEvent): Vec2 {
+function toWorld(e: ClientPoint): Vec2 {
   const rect = canvas.getBoundingClientRect();
   const scaleX = WORLD_WIDTH / rect.width;
   const scaleY = WORLD_HEIGHT / rect.height;
@@ -108,6 +123,9 @@ async function restart(useNewScenario: boolean): Promise<void> {
   aiMode = 'manual';
   nextAdviceIn = 30;
   nextAutopilotIn = 5;
+  autosaveIn = AUTOSAVE_INTERVAL;
+  // 清除旧存档：重开意味着放弃当前进度。
+  clearSave();
   const seed = Date.now() >>> 0;
   state = createInitialState(seed);
   rng = new Rng(seed);
@@ -115,7 +133,7 @@ async function restart(useNewScenario: boolean): Promise<void> {
 
   if (useNewScenario && ai) {
     aiStatus = 'AI 生成剧本中…';
-    const { scenario, online } = await generateScenario(ai, Math.random);
+    const { scenario, online } = await generateScenario(ai, () => rng.next());
     state.scenario = scenario;
     state.eventQueue = buildEventQueue(scenario);
     aiStatus = online ? 'AI 在线 ✦' : 'AI 离线（Mock 剧本）';
@@ -154,36 +172,38 @@ async function runAutopilot(): Promise<void> {
 
 // ---------- 输入装配 ----------
 
-canvas.addEventListener('mousedown', (e) => {
-  if (state.phase === 'ready') {
-    void restart(true);
-    startGame();
-    return;
-  }
-  if (state.phase === 'gameover') {
-    void restart(true);
-    return;
-  }
-  if (aiMode === 'auto') return; // 自动模式禁用人工画线
-  const pos = toWorld(e);
-  if (e.button === 2) {
-    deleteLineNear(state, pos);
-    return;
-  }
-  drag = beginDrag(state, pos);
+// 统一指针抽象：同时支持桌面鼠标与移动端触摸（优先 PointerEvent，回退 mouse+touch）。
+bindPointer(canvas, {
+  onDown: (e) => {
+    if (state.phase === 'ready') {
+      void restart(true);
+      startGame();
+      return;
+    }
+    if (state.phase === 'gameover') {
+      void restart(true);
+      return;
+    }
+    if (aiMode === 'auto') return; // 自动模式禁用人工画线
+    const pos = toWorld(e.point);
+    if (e.button === 2) {
+      deleteLineNear(state, pos);
+      return;
+    }
+    drag = beginDrag(state, pos);
+  },
+  onMove: (e) => {
+    if (!drag) return;
+    drag = updateDrag(state, drag, toWorld(e));
+  },
+  onUp: (e) => {
+    if (!drag) return;
+    endDrag(state, drag, toWorld(e));
+    drag = null;
+  },
 });
 
-canvas.addEventListener('mousemove', (e) => {
-  if (!drag) return;
-  drag = updateDrag(state, drag, toWorld(e));
-});
-
-window.addEventListener('mouseup', (e) => {
-  if (!drag) return;
-  endDrag(state, drag, toWorld(e));
-  drag = null;
-});
-
+// 双击删线（桌面专属快捷操作，触屏用长按或两指替代——当前保留 dblclick）。
 canvas.addEventListener('dblclick', (e) => {
   if (aiMode === 'auto') return;
   deleteLineNear(state, toWorld(e));
@@ -255,21 +275,40 @@ function frame(now: number): void {
       nextAutopilotIn -= dt;
       if (nextAutopilotIn <= 0 && !autopilotBusy) void runAutopilot();
     }
+    // 自动存档：每 AUTOSAVE_INTERVAL 秒序列化 state + Rng 状态，刷新可续局。
+    autosaveIn -= dt;
+    if (autosaveIn <= 0) {
+      saveGame(state, rng.getState());
+      autosaveIn = AUTOSAVE_INTERVAL;
+    }
+    gameoverSaveCleared = false;
+  } else if (state.phase === 'gameover' && !gameoverSaveCleared) {
+    // 游戏结束：清除存档（本局已结束，刷新应开新局而非回到 gameover）。
+    clearSave();
+    gameoverSaveCleared = true;
   }
 
+  // 插值因子：accumulator 是固定步长后剩余的未消费时间，
+  // alpha ∈[0,1) 表示「当前逻辑帧已推进的比例」，渲染时据此在上一帧与当前帧位置间 lerp。
+  const alpha = FIXED_STEP > 0 ? accumulator / FIXED_STEP : 0;
   const renderOpts: RenderOptions = {
     dragPreview: drag ? { color: drag.color, from: drag.from, to: drag.to } : null,
     advice,
     aiMode,
     aiStatus,
+    alpha,
   };
   render(ctx, state, WORLD_WIDTH, WORLD_HEIGHT, renderOpts);
 
   requestAnimationFrame(frame);
 }
 
-canvas.width = WORLD_WIDTH;
-canvas.height = WORLD_HEIGHT;
+// HiDPI 清晰渲染：backing store 按设备像素比放大，CSS 尺寸不变（由 style.css 控制）。
+// ctx.scale(dpr) 后，render 全部继续用逻辑坐标 960×600，无需改动。
+const dpr = Math.max(1, window.devicePixelRatio || 1);
+canvas.width = Math.round(WORLD_WIDTH * dpr);
+canvas.height = Math.round(WORLD_HEIGHT * dpr);
+ctx.scale(dpr, dpr);
 void initAi();
 requestAnimationFrame(frame);
 

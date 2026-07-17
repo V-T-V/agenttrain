@@ -161,3 +161,88 @@ function distToSeg(p: Vec2, a: Vec2, b: Vec2): number {
   const cy = a.y + aby * t;
   return Math.hypot(p.x - cx, p.y - cy);
 }
+
+// ---------- 统一指针抽象（鼠标 + 触摸）----------
+// 参考 kids-games/src/core/input.ts 的 bindPointer：优先 PointerEvent，
+// 回退到 mouse + touch 分立事件。让拖拽逻辑同时支持桌面鼠标和移动端触摸。
+
+/** 统一的指针位置（屏幕坐标，供 toWorld 转换）。 */
+export interface PointerPoint {
+  clientX: number;
+  clientY: number;
+}
+
+/** 统一的按下事件信息。button: 0=主键/触摸, 2=右键。 */
+export interface PointerDown {
+  point: PointerPoint;
+  button: number;
+}
+
+/** 统一的指针处理器集合。 */
+export interface PointerHandlers {
+  onDown?: (e: PointerDown) => void;
+  onMove?: (e: PointerPoint) => void;
+  onUp?: (e: PointerPoint) => void;
+}
+
+/**
+ * 给目标元素绑定统一的指针事件。
+ * 优先用 PointerEvent（现代浏览器，一套事件覆盖鼠标/触摸/笔）；
+ * 无 PointerEvent 时回退 mouse + touch 分立事件（touch 加 preventDefault 防页面滚动）。
+ * @returns 解绑函数，调用后移除所有监听器。
+ */
+export function bindPointer(target: HTMLElement, handlers: PointerHandlers): () => void {
+  const { onDown, onMove, onUp } = handlers;
+
+  // 优先 PointerEvent
+  if (typeof (window as unknown as { PointerEvent?: unknown }).PointerEvent !== 'undefined') {
+    const down = (e: PointerEvent) =>
+      onDown?.({ point: { clientX: e.clientX, clientY: e.clientY }, button: e.button });
+    const move = (e: PointerEvent) => onMove?.({ clientX: e.clientX, clientY: e.clientY });
+    const up = (e: PointerEvent) => onUp?.({ clientX: e.clientX, clientY: e.clientY });
+    target.addEventListener('pointerdown', down);
+    target.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+    return () => {
+      target.removeEventListener('pointerdown', down);
+      target.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+    };
+  }
+
+  // 回退：mouse + touch 分立
+  const mouseDown = (e: MouseEvent) =>
+    onDown?.({ point: { clientX: e.clientX, clientY: e.clientY }, button: e.button });
+  const mouseMove = (e: MouseEvent) => onMove?.({ clientX: e.clientX, clientY: e.clientY });
+  const mouseUp = (e: MouseEvent) => onUp?.({ clientX: e.clientX, clientY: e.clientY });
+  target.addEventListener('mousedown', mouseDown);
+  target.addEventListener('mousemove', mouseMove);
+  window.addEventListener('mouseup', mouseUp);
+
+  const touchStart = (e: TouchEvent) => {
+    if (e.cancelable) e.preventDefault(); // 防止触摸触发页面滚动/缩放
+    const t = e.changedTouches[0];
+    if (t) onDown?.({ point: { clientX: t.clientX, clientY: t.clientY }, button: 0 });
+  };
+  const touchMove = (e: TouchEvent) => {
+    if (e.cancelable) e.preventDefault();
+    const t = e.changedTouches[0];
+    if (t) onMove?.({ clientX: t.clientX, clientY: t.clientY });
+  };
+  const touchEnd = (e: TouchEvent) => {
+    const t = e.changedTouches[0];
+    if (t) onUp?.({ clientX: t.clientX, clientY: t.clientY });
+  };
+  target.addEventListener('touchstart', touchStart, { passive: false });
+  target.addEventListener('touchmove', touchMove, { passive: false });
+  target.addEventListener('touchend', touchEnd);
+
+  return () => {
+    target.removeEventListener('mousedown', mouseDown);
+    target.removeEventListener('mousemove', mouseMove);
+    window.removeEventListener('mouseup', mouseUp);
+    target.removeEventListener('touchstart', touchStart);
+    target.removeEventListener('touchmove', touchMove);
+    target.removeEventListener('touchend', touchEnd);
+  };
+}
