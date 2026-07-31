@@ -26,6 +26,7 @@ import { ALL_DIFFICULTIES, DIFFICULTY_NAME } from './game/difficulty.ts';
 import type { HighScores } from './game/highscore.ts';
 import { POWERUP_EMOJI } from './game/powerups.ts';
 import { getAchievement } from './game/achievements.ts';
+import { formatDuration, formatEfficiency } from './game/stats.ts';
 import type { Camera } from './game/camera.ts';
 import { type TutorialStep, TUTORIAL_TEXT, pauseMenuLayout } from './game/tutorial.ts';
 import type { Advice } from './ai/advisor.ts';
@@ -843,9 +844,11 @@ function drawGameOverPanel(
 
   // 战绩行
   const reached = state.delivered >= state.scenario.deliverTarget;
+  const minutes = state.elapsed / 60;
+  const efficiency = minutes > 0 ? state.delivered / minutes : 0;
   const rows = [
     `送达  ${state.delivered} / ${state.scenario.deliverTarget} ${reached ? '🏆 达标' : ''}`,
-    `存活  ${Math.floor(state.elapsed)} 秒`,
+    `存活  ${formatDuration(state.elapsed)}  ·  效率  ${formatEfficiency(efficiency)}/分钟`,
     `线路  ${state.lines.length} 条`,
     `最高连击  x${state.maxCombo}`,
     `难度  ${DIFFICULTY_NAME[state.difficulty]}`,
