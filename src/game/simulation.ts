@@ -85,8 +85,10 @@ function spawnTimers(state: GameState, dt: number, rng: Rng): void {
   while (state.nextPassengerIn <= 0) {
     state.nextPassengerIn += interval;
     spawnPassenger(state, rng);
-    // 「高峰」事件期间额外多刷一名乘客
-    if (isEventActive(state.activeEvents, 'surge')) spawnPassenger(state, rng);
+    // 「高峰」事件期间额外多刷一名乘客（任意 shape 的 surge 都生效）。
+    // 注意：isEventActive('surge') 需要 stationShape 才返回 true，
+    // 这里要的是「只要存在任意 surge 事件即多刷」，故直接检查 active 列表。
+    if (state.activeEvents.some((e) => e.kind === 'surge')) spawnPassenger(state, rng);
   }
 
   state.nextStationIn -= dt;

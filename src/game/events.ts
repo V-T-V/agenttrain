@@ -36,6 +36,8 @@ export function pumpEvents(
   eventQueue: ScriptedEvent[],
   active: ActiveEvent[],
 ): void {
+  // 从队首逐个检查：到点的事件移入 active 并从队列移除（splice 后不前进 i），
+  // 遇到第一个未到点的事件即停止（队列已按 at 升序排序）。
   let i = 0;
   while (i < eventQueue.length) {
     const ev = eventQueue[i]!;
@@ -46,11 +48,11 @@ export function pumpEvents(
         remaining: ev.duration,
       });
       eventQueue.splice(i, 1);
+      // splice 后 index i 的元素下移到 i，不递增 i，继续检查同一位置
     } else {
       // 已排序，后续都更晚
       break;
     }
-    i++;
   }
 }
 
