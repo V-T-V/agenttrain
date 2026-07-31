@@ -22,7 +22,8 @@ import type {
 import { linePoints, trainPosition } from './game/simulation.ts';
 import { lerpVec2 } from './game/geometry.ts';
 import { describeActive } from './game/events.ts';
-import { DIFFICULTY_NAME } from './game/difficulty.ts';
+import { ALL_DIFFICULTIES, DIFFICULTY_NAME } from './game/difficulty.ts';
+import type { HighScores } from './game/highscore.ts';
 import { POWERUP_EMOJI } from './game/powerups.ts';
 import { getAchievement } from './game/achievements.ts';
 import type { Camera } from './game/camera.ts';
@@ -60,7 +61,7 @@ export interface RenderOptions {
    */
   alpha?: number;
   /** 各档历史最高分（ready 面板展示）。 */
-  bestScores?: { easy: number; normal: number; hard: number };
+  bestScores?: HighScores;
   /** 本局是否破纪录（gameover 面板展示）。 */
   newRecord?: boolean;
   /** 当前教程步骤（0=不在教程态，1-4=四步引导）。 */
@@ -779,7 +780,7 @@ function drawReadyPanel(
   width: number,
   height: number,
   current: Difficulty,
-  bestScores?: { easy: number; normal: number; hard: number },
+  bestScores?: HighScores,
 ): void {
   ctx.save();
   ctx.fillStyle = 'rgba(0,0,0,0.35)';
@@ -795,27 +796,29 @@ function drawReadyPanel(
   ctx.font = '15px sans-serif';
   ctx.fillText('AI 将为你生成今日剧本 · A 顾问 · M 自动驾驶', width / 2, height / 2 - 88);
 
-  // 难度三档
-  const diffs: Difficulty[] = ['easy', 'normal', 'hard'];
-  const names: Record<Difficulty, string> = { easy: '简单', normal: '普通', hard: '困难' };
+  // 难度四档（由 ALL_DIFFICULTIES 驱动，加档无需改渲染）
+  const diffs = ALL_DIFFICULTIES;
+  const boxW = 92;
+  const gap = 12;
+  const totalW = diffs.length * boxW + (diffs.length - 1) * gap;
   diffs.forEach((d, i) => {
-    const bx = width / 2 - 165 + i * 110;
+    const bx = width / 2 - totalW / 2 + i * (boxW + gap);
     const by = height / 2 - 40;
     const selected = d === current;
     ctx.fillStyle = selected ? '#f1c40f' : 'rgba(255,255,255,0.15)';
-    roundRect(ctx, bx, by, 100, 44, 8);
+    roundRect(ctx, bx, by, boxW, 44, 8);
     ctx.fill();
     ctx.fillStyle = selected ? '#2c3e50' : '#fff';
-    ctx.font = 'bold 16px sans-serif';
-    ctx.fillText(`${names[d]} (${i + 1})`, bx + 50, by + 16);
+    ctx.font = 'bold 15px sans-serif';
+    ctx.fillText(`${DIFFICULTY_NAME[d]} (${i + 1})`, bx + boxW / 2, by + 16);
     ctx.font = '11px sans-serif';
     const best = bestScores ? bestScores[d] : 0;
-    ctx.fillText(best > 0 ? `最高 ${best}` : '尚无记录', bx + 50, by + 32);
+    ctx.fillText(best > 0 ? `最高 ${best}` : '尚无记录', bx + boxW / 2, by + 32);
   });
 
   ctx.fillStyle = '#ecf0f1';
   ctx.font = '14px sans-serif';
-  ctx.fillText('按 1/2/3 选难度，再点击或按任意键开始', width / 2, height / 2 + 40);
+  ctx.fillText('按 1/2/3/4 选难度，再点击或按任意键开始', width / 2, height / 2 + 40);
   ctx.restore();
 }
 

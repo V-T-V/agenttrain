@@ -5,8 +5,8 @@
 /** 站点 / 乘客的形状标识。站点形状决定它要接收哪种乘客。 */
 export type Shape = 'circle' | 'triangle' | 'square' | 'diamond' | 'star';
 
-/** 难度档。 */
-export type Difficulty = 'easy' | 'normal' | 'hard';
+/** 难度档：四档由易到难。 */
+export type Difficulty = 'easy' | 'normal' | 'hard' | 'expert';
 
 /** 所有可用形状，按解锁顺序排列（难度提升时逐步引入更稀有的形状）。 */
 export const ALL_SHAPES: readonly Shape[] = ['circle', 'triangle', 'square', 'diamond', 'star'];

@@ -9,10 +9,11 @@ export const DIFFICULTY_NAME: Record<Difficulty, string> = {
   easy: '简单',
   normal: '普通',
   hard: '困难',
+  expert: '专家',
 };
 
-/** 全部难度档（展示顺序）。 */
-export const ALL_DIFFICULTIES: readonly Difficulty[] = ['easy', 'normal', 'hard'];
+/** 全部难度档（展示顺序，由易到难）。 */
+export const ALL_DIFFICULTIES: readonly Difficulty[] = ['easy', 'normal', 'hard', 'expert'];
 
 /** 某一档的具体游戏参数。 */
 export interface DifficultyParams {
@@ -46,6 +47,12 @@ export const DIFFICULTY_PARAMS: Record<Difficulty, DifficultyParams> = {
     passengerInterval: 4,
     trainSpeed: 0.4,
   },
+  expert: {
+    capacity: 4,
+    overloadGrace: 3,
+    passengerInterval: 3.2,
+    trainSpeed: 0.38,
+  },
 };
 
 /** 取某档的参数。 */
@@ -53,8 +60,8 @@ export function paramsFor(difficulty: Difficulty): DifficultyParams {
   return DIFFICULTY_PARAMS[difficulty];
 }
 
-/** 难度档排序（easy<normal<hard），用于比较升降。 */
-const RANK: Record<Difficulty, number> = { easy: 0, normal: 1, hard: 2 };
+/** 难度档排序（easy<normal<hard<expert），用于比较升降。 */
+const RANK: Record<Difficulty, number> = { easy: 0, normal: 1, hard: 2, expert: 3 };
 
 /** 是否比另一档更高。 */
 export function isHigher(a: Difficulty, b: Difficulty): boolean {
@@ -63,12 +70,12 @@ export function isHigher(a: Difficulty, b: Difficulty): boolean {
 
 /** 升一档；已最高则不变。 */
 export function bumpUp(d: Difficulty): Difficulty {
-  return d === 'easy' ? 'normal' : d === 'normal' ? 'hard' : 'hard';
+  return d === 'easy' ? 'normal' : d === 'normal' ? 'hard' : d === 'hard' ? 'expert' : 'expert';
 }
 
 /** 降一档；已最低则不变。 */
 export function bumpDown(d: Difficulty): Difficulty {
-  return d === 'hard' ? 'normal' : d === 'normal' ? 'easy' : 'easy';
+  return d === 'expert' ? 'hard' : d === 'hard' ? 'normal' : d === 'normal' ? 'easy' : 'easy';
 }
 
 /** 从 localStorage 记忆上次难度（失败回退 normal）。 */
@@ -76,7 +83,7 @@ const PREF_KEY = 'agenttrain-difficulty-pref';
 export function loadPreferredDifficulty(): Difficulty {
   try {
     const v = localStorage.getItem(PREF_KEY);
-    if (v === 'easy' || v === 'normal' || v === 'hard') return v;
+    if (v === 'easy' || v === 'normal' || v === 'hard' || v === 'expert') return v;
   } catch {
     /* 隐私模式：忽略 */
   }

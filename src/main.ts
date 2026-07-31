@@ -393,8 +393,8 @@ function onGameKey(e: KeyboardEvent): void {
     return;
   }
   if (state.phase === 'ready') {
-    // 1/2/3 选难度（不立即开始）；其它键开始游戏
-    if (e.key === '1' || e.key === '2' || e.key === '3') {
+    // 1/2/3/4 选难度（不立即开始）；其它键开始游戏
+    if (e.key === '1' || e.key === '2' || e.key === '3' || e.key === '4') {
       selectedDifficulty = ALL_DIFFICULTIES[Number(e.key) - 1]!;
       state.difficulty = selectedDifficulty;
       savePreferredDifficulty(selectedDifficulty);

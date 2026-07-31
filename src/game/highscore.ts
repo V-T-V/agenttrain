@@ -10,13 +10,14 @@ export interface HighScores {
   easy: number;
   normal: number;
   hard: number;
+  expert: number;
 }
 
 function empty(): HighScores {
-  return { easy: 0, normal: 0, hard: 0 };
+  return { easy: 0, normal: 0, hard: 0, expert: 0 };
 }
 
-/** 读取最高分；失败返回全 0。 */
+/** 读取最高分；失败返回全 0。兼容旧版（无 expert 字段）存档。 */
 export function loadHighScores(): HighScores {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -26,6 +27,7 @@ export function loadHighScores(): HighScores {
       easy: clamp(parsed.easy),
       normal: clamp(parsed.normal),
       hard: clamp(parsed.hard),
+      expert: clamp(parsed.expert),
     };
   } catch {
     return empty();
