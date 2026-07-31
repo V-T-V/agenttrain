@@ -11,7 +11,7 @@ import { mockAdvice, parseAdvice, serializeSnapshot } from '../src/ai/advisor.ts
 import { autopilotTick, mockAutopilot } from '../src/ai/autopilot.ts';
 import { createInitialState } from '../src/game/state.ts';
 import { createLine } from '../src/game/simulation.ts';
-import type { GameState, Shape } from '../src/game/types.ts';
+import type { GameState } from '../src/game/types.ts';
 import type { AIClient, Message, ToolCall } from '../src/ai/types.ts';
 
 function runningState(): GameState {

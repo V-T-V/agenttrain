@@ -2,7 +2,6 @@
 // usePowerUp 与注册表/库存的边界。补充 powerups.test.ts / specials.test.ts。
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { Rng } from '../src/utils/rng.ts';
 import { createInitialState } from '../src/game/state.ts';
 import {
   DOUBLE_SCORE_DURATION,
