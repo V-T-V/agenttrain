@@ -27,6 +27,8 @@ export const ACHIEVEMENTS: readonly Achievement[] = [
   // 难度
   { id: 'hard-clear', name: '挑战者', icon: '⚔️', hint: '在困难难度下通关（送达目标）' },
   { id: 'hard-200', name: '硬核调度', icon: '💀', hint: '困难难度下单局送达 200' },
+  { id: 'expert-clear', name: '极限挑战', icon: '🏆', hint: '在专家难度下通关（送达目标）' },
+  { id: 'expert-200', name: '调度之神', icon: '👑', hint: '专家难度下单局送达 200' },
   // 道具
   { id: 'power-user', name: '道具达人', icon: '🧰', hint: '单局使用 5 次道具' },
   // 生存
@@ -110,10 +112,17 @@ export function checkAchievements(stats: GameOverStats): string[] {
   // 难度
   if (stats.difficulty === 'hard' && stats.reachedTarget) tryUnlock('hard-clear');
   if (stats.difficulty === 'hard' && stats.delivered >= 200) tryUnlock('hard-200');
+  if (stats.difficulty === 'expert' && stats.reachedTarget) tryUnlock('expert-clear');
+  if (stats.difficulty === 'expert' && stats.delivered >= 200) tryUnlock('expert-200');
   if (stats.difficulty === 'easy' && stats.reachedTarget) tryUnlock('easy-master');
   if (stats.difficulty === 'normal' && stats.reachedTarget) tryUnlock('normal-master');
-  // 全难通：检测三个难度成就是否都已解锁
-  if (unlocked.has('easy-master') && unlocked.has('normal-master') && unlocked.has('hard-clear')) {
+  // 全难通：四个难度通关成就是否都已解锁
+  if (
+    unlocked.has('easy-master') &&
+    unlocked.has('normal-master') &&
+    unlocked.has('hard-clear') &&
+    unlocked.has('expert-clear')
+  ) {
     tryUnlock('all-difficulty');
   }
   // 道具
