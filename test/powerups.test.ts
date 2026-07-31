@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Rng } from '../src/utils/rng.ts';
 import { createInitialState } from '../src/game/state.ts';
+import { MAX_POWERUPS } from '../src/game/config.ts';
 import {
   comboMultiplier,
   maybeSpawnPowerUp,
@@ -46,13 +47,13 @@ test('maybeSpawnPowerUp 达上限不再生成', () => {
   const s = runningState();
   const rng = new Rng(7);
   s.nextPowerUpIn = 0;
-  s.powerUps = [
-    { id: 0, type: 'speed', pos: { x: 100, y: 100 } },
-    { id: 1, type: 'clear', pos: { x: 200, y: 100 } },
-    { id: 2, type: 'deliver', pos: { x: 300, y: 100 } },
-  ];
+  // 预填满 MAX_POWERUPS 个道具
+  const types = ['speed', 'clear', 'deliver', 'magnet', 'shield', 'double'] as const;
+  for (let i = 0; i < MAX_POWERUPS; i++) {
+    s.powerUps.push({ id: i, type: types[i % types.length]!, pos: { x: 100 + i * 50, y: 100 } });
+  }
   maybeSpawnPowerUp(s, 1, rng);
-  assert.equal(s.powerUps.length, 3);
+  assert.equal(s.powerUps.length, MAX_POWERUPS);
 });
 
 // ---------- 拾取 ----------

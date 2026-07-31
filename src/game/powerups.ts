@@ -5,10 +5,10 @@ import {
   COMBO_MULTIPLIER_STEP,
   COMBO_STEP,
   COMBO_WINDOW,
+  MAX_INVENTORY,
   MAX_POWERUPS,
   POWERUP_INTERVAL,
   POWERUP_RADIUS,
-  SPEED_BOOST_DURATION,
   SPEED_BOOST_MULTIPLIER,
   WORLD_HEIGHT,
   WORLD_MARGIN,
@@ -16,14 +16,18 @@ import {
 } from './config.ts';
 import { dist } from './geometry.ts';
 import { trainPosition } from './simulation.ts';
-import type { GameState, PowerUp, PowerUpType, Station, Vec2 } from './types.ts';
+import type { GameState, PowerUp, PowerUpType, Vec2 } from './types.ts';
 import type { Rng } from '../utils/rng.ts';
+import { allPowerUpTypes, getPowerUpDef } from './powerupRegistry.ts';
 
 /** 道具类型 → 渲染用 emoji。 */
 export const POWERUP_EMOJI: Record<PowerUpType, string> = {
   speed: '⚡',
   clear: '🧹',
   deliver: '📦',
+  magnet: '🧲',
+  shield: '🛡️',
+  double: '✨',
 };
 
 /** 道具类型 → 中文名。 */
@@ -31,6 +35,9 @@ export const POWERUP_NAME: Record<PowerUpType, string> = {
   speed: '加速',
   clear: '清站',
   deliver: '急送',
+  magnet: '磁铁',
+  shield: '护盾',
+  double: '双倍',
 };
 
 /** 定时生成新道具（达到间隔且未超上限时）。 */
@@ -39,8 +46,8 @@ export function maybeSpawnPowerUp(state: GameState, dt: number, rng: Rng): void 
   state.nextPowerUpIn -= dt;
   if (state.nextPowerUpIn > 0) return;
   state.nextPowerUpIn = POWERUP_INTERVAL;
-  const types: PowerUpType[] = ['speed', 'clear', 'deliver'];
-  const type = rng.pick(types);
+  const types = allPowerUpTypes();
+  const type = rng.pick([...types]) as PowerUpType;
   const pos = randomFreeSpot(state, rng);
   if (!pos) return;
   const pu: PowerUp = { id: state.nextPowerUpId++, type, pos };
@@ -68,7 +75,7 @@ export function pickupPowerUps(state: GameState): void {
     for (let i = state.powerUps.length - 1; i >= 0; i--) {
       const pu = state.powerUps[i]!;
       if (dist(pu.pos, tp) < POWERUP_RADIUS + 8) {
-        if ((state.inventory[pu.type] ?? 0) < 3) {
+        if ((state.inventory[pu.type] ?? 0) < MAX_INVENTORY) {
           state.inventory[pu.type] = (state.inventory[pu.type] ?? 0) + 1;
         }
         state.powerUps.splice(i, 1);
@@ -77,48 +84,13 @@ export function pickupPowerUps(state: GameState): void {
   }
 }
 
-/** 玩家使用一个道具。返回是否成功使用。 */
+/** 玩家使用一个道具。返回是否成功使用。通过注册表分发，加新道具无需改此函数。 */
 export function usePowerUp(state: GameState, type: PowerUpType): boolean {
   if ((state.inventory[type] ?? 0) <= 0) return false;
+  const def = getPowerUpDef(type);
+  if (!def) return false;
   state.inventory[type] = (state.inventory[type] ?? 0) - 1;
-  switch (type) {
-    case 'speed':
-      state.speedBoostTimer = Math.max(state.speedBoostTimer, SPEED_BOOST_DURATION);
-      return true;
-    case 'clear':
-      // 清空当前最堵的站点
-      return clearWorstStation(state);
-    case 'deliver':
-      // 把所有车上乘客视为送达
-      return deliverAllOnBoard(state);
-  }
-}
-
-/** 清空最堵站点（乘客数最多且 >0 的站）。返回是否找到并清空。 */
-function clearWorstStation(state: GameState): boolean {
-  // 选乘客最多的一站
-  let target: Station | undefined;
-  let max = 0;
-  for (const s of state.stations) {
-    if (s.passengers.length > max) {
-      max = s.passengers.length;
-      target = s;
-    }
-  }
-  if (!target || max === 0) return true; // 无乘客也算用掉（罕见）
-  target.passengers = [];
-  return true;
-}
-
-/** 把所有列车上的乘客全部送达结算。 */
-function deliverAllOnBoard(state: GameState): boolean {
-  for (const train of state.trains) {
-    if (train.passengers.length > 0) {
-      state.delivered += train.passengers.length;
-      train.passengers = [];
-    }
-  }
-  return true; // 即使没乘客也算用掉
+  return def.onUse(state);
 }
 
 /** 加速道具当前是否生效。 */
@@ -136,6 +108,35 @@ export function tickSpeedBoost(state: GameState, dt: number): void {
   if (state.speedBoostTimer > 0) {
     state.speedBoostTimer = Math.max(0, state.speedBoostTimer - dt);
   }
+}
+
+// ===== 磁铁 / 双倍得分（扩展道具） =====
+
+/** 磁铁道具当前是否生效（生效时列车上车忽略「目标形状可达」检查）。 */
+export function isMagnetActive(state: GameState): boolean {
+  return state.magnetTimer > 0;
+}
+
+/** 每帧衰减磁铁计时器。 */
+export function tickMagnet(state: GameState, dt: number): void {
+  if (state.magnetTimer > 0) state.magnetTimer = Math.max(0, state.magnetTimer - dt);
+}
+
+/** 双倍得分道具当前是否生效（生效时送达得分 ×2）。 */
+export function isDoubleScoreActive(state: GameState): boolean {
+  return state.doubleScoreTimer > 0;
+}
+
+/** 每帧衰减双倍得分计时器。 */
+export function tickDoubleScore(state: GameState, dt: number): void {
+  if (state.doubleScoreTimer > 0) state.doubleScoreTimer = Math.max(0, state.doubleScoreTimer - dt);
+}
+
+/** 当前得分倍率（连击倍率 × 双倍道具，若生效）。 */
+export function scoreMultiplier(state: GameState): number {
+  let mult = comboMultiplier(state);
+  if (isDoubleScoreActive(state)) mult *= 2;
+  return mult;
 }
 
 // ===== 连击系统 =====
@@ -156,8 +157,9 @@ export function tickCombo(state: GameState, dt: number): void {
   }
 }
 
-/** 记录一次送达：连击 +1，刷新计时窗口。 */
+/** 记录一次送达：连击 +1，刷新计时窗口，跟踪本局最高连击。 */
 export function registerComboHit(state: GameState): void {
   state.combo.count += 1;
   state.combo.timer = COMBO_WINDOW;
+  if (state.combo.count > state.maxCombo) state.maxCombo = state.combo.count;
 }

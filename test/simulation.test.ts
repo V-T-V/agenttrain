@@ -4,6 +4,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Rng } from '../src/utils/rng.ts';
 import { createInitialState } from '../src/game/state.ts';
+import { INITIAL_STATIONS } from '../src/game/config.ts';
 import {
   createLine,
   extendLine,
@@ -22,9 +23,9 @@ function runningState(seed = 1): GameState {
   return s;
 }
 
-test('初始状态有 4 个站点、无线路', () => {
+test('初始状态有 INITIAL_STATIONS 个站点、无线路', () => {
   const s = createInitialState(1);
-  assert.equal(s.stations.length, 4);
+  assert.equal(s.stations.length, INITIAL_STATIONS);
   assert.equal(s.lines.length, 0);
   assert.equal(s.trains.length, 0);
   assert.equal(s.phase, 'ready');
@@ -48,24 +49,25 @@ test('createLine 相同站点失败', () => {
   assert.equal(s.lines.length, 0);
 });
 
-test('createLine 达到 7 条上限后失败', () => {
+test('createLine 达到 MAX_LINES(24) 条上限后失败', () => {
   const s = runningState();
-  // 站点不够就再加几个
-  while (s.stations.length < 16) {
+  // 站点不够就再加几个（需要 ≥25 站才能建 24 条相邻线）
+  while (s.stations.length < 28) {
     s.stations.push({
       id: s.nextStationId++,
       shape: 'circle',
       pos: { x: 100 + s.stations.length * 30, y: 100 },
       passengers: [],
       overloadTimer: 0,
+      kind: 'normal',
     });
   }
   let made = 0;
-  for (let i = 0; i < s.stations.length - 1 && made < 10; i++) {
+  for (let i = 0; i < s.stations.length - 1 && made < 30; i++) {
     if (createLine(s, s.stations[i]!.id, s.stations[i + 1]!.id)) made++;
   }
-  assert.equal(made, 7); // 上限
-  assert.equal(s.lines.length, 7);
+  assert.equal(made, 24); // 上限
+  assert.equal(s.lines.length, 24);
 });
 
 test('列车到目标形状站点送达并加分', () => {

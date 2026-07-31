@@ -10,8 +10,8 @@
 import { SNAP_DISTANCE, STATION_RADIUS } from './game/config.ts';
 import { MAX_LINES } from './game/config.ts';
 import type { GameState, LineColor, Vec2 } from './game/types.ts';
-import { dist } from './game/geometry.ts';
-import { createLine, extendLine, lineEndpoints, removeLine } from './game/simulation.ts';
+import { dist, distToSegment } from './game/geometry.ts';
+import { createLine, extendLine, lineEndpoints, pickColor, removeLine } from './game/simulation.ts';
 
 /** 拖拽中状态的描述，供渲染画预览。 */
 export interface DragState {
@@ -132,7 +132,7 @@ export function deleteLineNear(state: GameState, pos: Vec2): void {
       .map((sid) => state.stations.find((s) => s.id === sid)?.pos)
       .filter((p): p is Vec2 => !!p);
     for (let i = 0; i < pts.length - 1; i++) {
-      const d = distToSeg(pos, pts[i]!, pts[i + 1]!);
+      const d = distToSegment(pos, pts[i]!, pts[i + 1]!);
       if (d < bestD) {
         bestD = d;
         bestId = line.id;
@@ -142,24 +142,10 @@ export function deleteLineNear(state: GameState, pos: Vec2): void {
   if (bestId !== null) removeLine(state, bestId);
 }
 
-/** 选一个尚未被使用的线路颜色。 */
+/** 选一个尚未被使用的线路颜色（复用 simulation 的 pickColor，消除重复）。 */
 function pickFreshColor(state: GameState): LineColor {
-  const order: LineColor[] = ['red', 'blue', 'green', 'orange', 'purple', 'pink', 'teal'];
   const used = new Set(state.lines.map((l) => l.color));
-  for (const c of order) if (!used.has(c)) return c;
-  return order[0]!;
-}
-
-// 局部点到线段距离（避免和 geometry 形成循环依赖的小副本）
-function distToSeg(p: Vec2, a: Vec2, b: Vec2): number {
-  const abx = b.x - a.x;
-  const aby = b.y - a.y;
-  const lenSq = abx * abx + aby * aby;
-  let t = lenSq === 0 ? 0 : ((p.x - a.x) * abx + (p.y - a.y) * aby) / lenSq;
-  t = Math.max(0, Math.min(1, t));
-  const cx = a.x + abx * t;
-  const cy = a.y + aby * t;
-  return Math.hypot(p.x - cx, p.y - cy);
+  return pickColor(used);
 }
 
 // ---------- 统一指针抽象（鼠标 + 触摸）----------

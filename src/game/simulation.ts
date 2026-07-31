@@ -12,27 +12,28 @@ import {
   type Vec2,
 } from './types.ts';
 import {
-  OVERLOAD_GRACE,
-  PASSENGER_INTERVAL,
+  MAX_LINES,
   PASSENGER_INTERVAL_DECAY_PER_MIN,
   PASSENGER_INTERVAL_MIN,
   SHAPE_UNLOCK_INTERVAL,
-  STATION_CAPACITY,
   TRAIN_CAPACITY,
   TRAIN_DWELL,
-  TRAIN_SPEED,
 } from './config.ts';
 import { addStation, spawnPassenger } from './state.ts';
 import { positionAlong, segmentLength } from './geometry.ts';
-import { isSlowActive, isStrikeActive, pumpEvents, tickActiveEvents } from './events.ts';
+import { isEventActive } from './eventRegistry.ts';
+import { pumpEvents, tickActiveEvents } from './events.ts';
 import {
-  comboMultiplier,
-  registerComboHit,
-  tickCombo,
-  tickSpeedBoost,
+  isMagnetActive,
   maybeSpawnPowerUp,
   pickupPowerUps,
+  registerComboHit,
+  scoreMultiplier,
   speedBoostMultiplier,
+  tickCombo,
+  tickDoubleScore,
+  tickMagnet,
+  tickSpeedBoost,
 } from './powerups.ts';
 import type { Rng } from '../utils/rng.ts';
 
@@ -53,10 +54,12 @@ export function step(state: GameState, dt: number, rng: Rng): GameState {
   pumpEvents(state.elapsed, state.eventQueue, state.activeEvents);
   tickActiveEvents(state.activeEvents, dt);
 
-  // 道具：定时生成、列车拾取、加速/连击计时器衰减
+  // 道具：定时生成、列车拾取、加速/磁铁/双倍/连击计时器衰减
   maybeSpawnPowerUp(state, dt, rng);
   pickupPowerUps(state);
   tickSpeedBoost(state, dt);
+  tickMagnet(state, dt);
+  tickDoubleScore(state, dt);
   tickCombo(state, dt);
 
   spawnTimers(state, dt, rng);
@@ -71,11 +74,11 @@ export function step(state: GameState, dt: number, rng: Rng): GameState {
 
 /** 处理乘客/站点的生成倒计时与形状解锁节奏。 */
 function spawnTimers(state: GameState, dt: number, rng: Rng): void {
-  // 乘客生成间隔随游戏时长缩短（越来越紧张）
+  // 乘客生成间隔随游戏时长缩短（越来越紧张），基础间隔由难度档决定
   const minutes = state.elapsed / 60;
   const interval = Math.max(
     PASSENGER_INTERVAL_MIN,
-    PASSENGER_INTERVAL - PASSENGER_INTERVAL_DECAY_PER_MIN * minutes,
+    state.passengerInterval - PASSENGER_INTERVAL_DECAY_PER_MIN * minutes,
   );
 
   state.nextPassengerIn -= dt;
@@ -83,7 +86,7 @@ function spawnTimers(state: GameState, dt: number, rng: Rng): void {
     state.nextPassengerIn += interval;
     spawnPassenger(state, rng);
     // 「高峰」事件期间额外多刷一名乘客
-    if (hasSurge(state)) spawnPassenger(state, rng);
+    if (isEventActive(state.activeEvents, 'surge')) spawnPassenger(state, rng);
   }
 
   state.nextStationIn -= dt;
@@ -99,11 +102,6 @@ function stationIntervalNow(state: GameState): number {
   const extra = Math.floor(state.stations.length / 5);
   const base = Math.max(8, 22 - extra * 2);
   return base * state.scenario.stationIntervalMultiplier;
-}
-
-/** 是否存在任一生效中的「高峰」事件。 */
-function hasSurge(state: GameState): boolean {
-  return state.activeEvents.some((a) => a.kind === 'surge');
 }
 
 /** 每隔固定时间解锁一种新形状（直到用满 ALL_SHAPES）。 */
@@ -161,11 +159,11 @@ function advanceTrain(state: GameState, train: Train, line: Line, dt: number): v
       arriveAtStation(state, train, line);
       continue;
     }
-    // 速度归一化到「每秒走过的像素」，TRAIN_SPEED 是段/秒，乘以段长得像素/秒。
+    // 速度归一化到「每秒走过的像素」，trainSpeed 由难度档决定（段/秒），乘以段长得像素/秒。
     // 叠加剧本速度倍率、加速道具、减速事件（三者相乘）。
-    const slowFactor = isSlowActive(state.activeEvents) ? 0.5 : 1;
+    const slowFactor = isEventActive(state.activeEvents, 'slow') ? 0.5 : 1;
     const speedPx =
-      TRAIN_SPEED *
+      state.trainSpeed *
       state.scenario.trainSpeedMultiplier *
       speedBoostMultiplier(state) *
       slowFactor *
@@ -232,11 +230,13 @@ function arriveAtStation(state: GameState, train: Train, line: Line): void {
  */
 function exchangePassengers(state: GameState, train: Train, station: Station): void {
   // 罢工中的站点：列车经过但不装卸（停运）
-  if (isStrikeActive(state.activeEvents, station.shape)) return;
+  if (isEventActive(state.activeEvents, 'strike', station.shape)) return;
 
-  // 下车：每送达一名，按当前连击倍率加分并刷新连击窗口
+  // 奖励站送达额外 ×2（与连击/双倍道具叠加）
+  const bonusMultiplier = station.kind === 'bonus' ? 2 : 1;
+  // 下车：每送达一名，按当前得分倍率（连击 × 双倍道具 × 奖励站）加分并刷新连击窗口
   const staying: typeof train.passengers = [];
-  const mult = comboMultiplier(state);
+  const mult = scoreMultiplier(state) * bonusMultiplier;
   for (const p of train.passengers) {
     if (p.target === station.shape) {
       state.delivered += mult;
@@ -247,14 +247,16 @@ function exchangePassengers(state: GameState, train: Train, station: Station): v
   }
   train.passengers = staying;
 
-  // 上车：判断本线路是否经过该乘客目标形状的站点
+  // 上车：磁铁道具生效 或 换乘站 时，忽略「目标形状可达」检查（任意乘客可上车）
+  const skipReachable = isMagnetActive(state) || station.kind === 'transfer';
   const line = state.lines.find((l) => l.id === train.lineId);
   if (!line) return;
   const reachableShapes = reachableShapeSet(state, line);
 
   const stillWaiting: typeof station.passengers = [];
   for (const p of station.passengers) {
-    if (train.passengers.length < TRAIN_CAPACITY && reachableShapes.has(p.target)) {
+    const canBoard = skipReachable || reachableShapes.has(p.target);
+    if (train.passengers.length < TRAIN_CAPACITY && canBoard) {
       train.passengers.push(p);
     } else {
       stillWaiting.push(p);
@@ -278,9 +280,9 @@ function reachableShapeSet(state: GameState, line: Line): Set<string> {
 /** 站点满载时累积 overloadTimer，超过宽限时间即 Game Over。 */
 function handleOverload(state: GameState, dt: number): void {
   for (const st of state.stations) {
-    if (st.passengers.length >= STATION_CAPACITY) {
+    if (st.passengers.length >= state.capacity) {
       st.overloadTimer += dt;
-      if (st.overloadTimer >= OVERLOAD_GRACE) {
+      if (st.overloadTimer >= state.overloadGrace) {
         state.phase = 'gameover';
         return;
       }
@@ -303,7 +305,7 @@ export function createLine(
   endStationId: number,
 ): boolean {
   if (startStationId === endStationId) return false;
-  if (state.lines.length >= 7) return false; // MAX_LINES
+  if (state.lines.length >= MAX_LINES) return false;
   const start = state.stations.find((s) => s.id === startStationId);
   const end = state.stations.find((s) => s.id === endStationId);
   if (!start || !end) return false;
@@ -347,9 +349,17 @@ export function extendLine(
 
   if (atStart) {
     line.stops.unshift(newStationId);
-    // 段索引整体 +1（因为前面插入了一段），t 不变仍合理
+    // 段索引整体 +1（因为前面插入了一段）。
+    // 同时需调整 t：新段长度与原第 0 段长度不同时，列车在原段内的进度 t 需按段长度比例缩放，
+    // 否则列车会跳到新段的错误位置。修复：t 按新段长度重映射。
     for (const tr of trainsOn(state, lineId)) {
+      const oldSegLength = segmentLength(linePoints(state, line), tr.segment);
       tr.segment += 1;
+      const newSegLength = segmentLength(linePoints(state, line), tr.segment);
+      if (oldSegLength > 0 && newSegLength > 0) {
+        // 把原段内进度按段长度比例转换（保持列车在世界空间的视觉位置不变）
+        tr.t = Math.min(0.999, (tr.t * oldSegLength) / newSegLength);
+      }
     }
   } else {
     line.stops.push(newStationId);
@@ -379,14 +389,24 @@ function trainsOn(state: GameState, lineId: number): Train[] {
   return state.trains.filter((t) => t.lineId === lineId);
 }
 
-function pickColor(used: Set<LineColor>): LineColor {
-  const order: LineColor[] = ['red', 'blue', 'green', 'orange', 'purple', 'pink', 'teal'];
-  for (const c of order) {
+/** 线路颜色分配顺序（7 色）。MAX_LINES(24) > 7，超过会复用。 */
+export const LINE_COLOR_ORDER: readonly LineColor[] = [
+  'red',
+  'blue',
+  'green',
+  'orange',
+  'purple',
+  'pink',
+  'teal',
+];
+
+/** 选一个尚未被使用的线路颜色；全用完则回退首色（复用）。 */
+export function pickColor(used: Set<LineColor>): LineColor {
+  for (const c of LINE_COLOR_ORDER) {
     if (!used.has(c)) return c;
   }
-  // 7 色全用完：实际不可达（createLine 在 lines.length>=7 即 MAX_LINES 时已拦截）。
-  // 用确定性的顺序首位替代 Math.random，消除确定性漏洞（存档/回放可复现）。
-  return order[0]!;
+  // MAX_LINES(24) > 7 色：超过 7 条线后会复用颜色。同色视觉混淆是已知限制。
+  return LINE_COLOR_ORDER[0]!;
 }
 
 /** 构建 station id → Station 的索引 Map，消除重复的 O(n) find 扫描。 */

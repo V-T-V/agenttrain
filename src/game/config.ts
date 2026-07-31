@@ -17,10 +17,10 @@ export const TRAIN_DWELL = 0.35;
 export const TRAIN_CAPACITY = 6;
 
 /** 初始站点数量。 */
-export const INITIAL_STATIONS = 4;
+export const INITIAL_STATIONS = 12;
 
 /** 玩家最多可建立的线路数。 */
-export const MAX_LINES = 7;
+export const MAX_LINES = 24;
 
 /** 一条线路最少需要的站点数（含两端）。 */
 export const MIN_LINE_STOPS = 2;
@@ -40,15 +40,16 @@ export const STATION_INTERVAL = 22;
 /** 每经过多少秒解锁一个新形状（直到用满 ALL_SHAPES 全部）。 */
 export const SHAPE_UNLOCK_INTERVAL = 30;
 
-/** 画布逻辑尺寸（渲染与命中检测都以这个坐标系为准）。 */
-export const WORLD_WIDTH = 960;
-export const WORLD_HEIGHT = 600;
+/** 画布逻辑尺寸（渲染与命中检测都以这个坐标系为准）。
+ *  第六轮：地图面积×8（宽×4、高×2），让一局跨越更大地图、线路更长。 */
+export const WORLD_WIDTH = 3840;
+export const WORLD_HEIGHT = 1200;
 
 /** 站点在画布上的命中/绘制半径（像素）。 */
 export const STATION_RADIUS = 16;
 
 /** 新站点之间允许的最小间距（像素），避免叠在一起。 */
-export const MIN_STATION_DISTANCE = 110;
+export const MIN_STATION_DISTANCE = 160;
 
 /** 两站之间要建线路/合并站点时的吸附半径（像素）。 */
 export const SNAP_DISTANCE = 26;
@@ -65,7 +66,7 @@ export const WORLD_MARGIN = 60;
 export const POWERUP_INTERVAL = 25;
 
 /** 地图上同时存在的道具上限。 */
-export const MAX_POWERUPS = 3;
+export const MAX_POWERUPS = 8;
 
 /** 道具在地图上的命中/绘制半径（像素）。 */
 export const POWERUP_RADIUS = 14;
@@ -89,3 +90,16 @@ export const COMBO_STEP = 5;
 
 /** 每档倍率增量（每 COMBO_STEP 次连击 +0.5 倍）。 */
 export const COMBO_MULTIPLIER_STEP = 0.5;
+
+// ===== 扩展道具（第五轮） =====
+
+/** 磁铁道具持续时间（秒）。 */
+export const MAGNET_DURATION = 8;
+
+/** 双倍得分道具持续时间（秒）。 */
+export const DOUBLE_SCORE_DURATION = 10;
+
+// ===== 特殊站点（第五轮） =====
+
+/** 新生成站点为特殊站点的概率（0-1）。 */
+export const SPECIAL_STATION_CHANCE = 0.12;

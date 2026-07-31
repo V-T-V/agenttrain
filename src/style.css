@@ -31,10 +31,10 @@ body {
 }
 
 #game {
-  width: min(96vw, 960px);
+  width: min(96vw, 1280px);
   height: auto;
-  max-width: 960px;
-  aspect-ratio: 960 / 600;
+  max-width: 1280px;
+  aspect-ratio: 3840 / 1200;
   background: #f4f1ea;
   border-radius: 12px;
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);

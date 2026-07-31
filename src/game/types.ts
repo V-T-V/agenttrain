@@ -5,6 +5,9 @@
 /** 站点 / 乘客的形状标识。站点形状决定它要接收哪种乘客。 */
 export type Shape = 'circle' | 'triangle' | 'square' | 'diamond' | 'star';
 
+/** 难度档。 */
+export type Difficulty = 'easy' | 'normal' | 'hard';
+
 /** 所有可用形状，按解锁顺序排列（难度提升时逐步引入更稀有的形状）。 */
 export const ALL_SHAPES: readonly Shape[] = ['circle', 'triangle', 'square', 'diamond', 'star'];
 
@@ -22,6 +25,9 @@ export interface Passenger {
   target: Shape;
 }
 
+/** 站点种类：normal=普通，transfer=换乘站（上车忽略可达），bonus=奖励站（送达 ×2）。 */
+export type StationKind = 'normal' | 'transfer' | 'bonus';
+
 /** 一个站点（节点）。线路通过引用 station.id 把站点串起来。 */
 export interface Station {
   id: number;
@@ -31,6 +37,8 @@ export interface Station {
   passengers: Passenger[];
   /** 累计的「过载时间」（秒）。超过 OVERLOAD_GRACE 即 Game Over。 */
   overloadTimer: number;
+  /** 站点种类（默认 normal）。 */
+  kind: StationKind;
 }
 
 /** 一条线路的颜色标识（同时也是 UI 颜色）。 */
@@ -115,14 +123,30 @@ export interface GameState {
   speedBoostTimer: number;
   /** 连击状态（短时连续送达累加倍率）。 */
   combo: Combo;
+  /** 本局达到过的最高连击数（结束战绩用）。 */
+  maxCombo: number;
   /** 道具生成倒计时（运行期内部用，不渲染）。 */
   nextPowerUpIn: number;
   /** 下一个可分配的道具 id。 */
   nextPowerUpId: number;
+  /** 当前难度档（决定下面的各参数）。 */
+  difficulty: Difficulty;
+  /** 站点最大乘客数（由难度档注入）。 */
+  capacity: number;
+  /** 满载后宽限秒数（由难度档注入）。 */
+  overloadGrace: number;
+  /** 乘客生成基础间隔秒数（由难度档注入）。 */
+  passengerInterval: number;
+  /** 列车速度段/秒（由难度档注入）。 */
+  trainSpeed: number;
+  /** 磁铁道具剩余生效时间（秒）；>0 时列车上车忽略可达检查。 */
+  magnetTimer: number;
+  /** 双倍得分道具剩余生效时间（秒）；>0 时送达得分 ×2。 */
+  doubleScoreTimer: number;
 }
 
 /** 道具类型。 */
-export type PowerUpType = 'speed' | 'clear' | 'deliver';
+export type PowerUpType = 'speed' | 'clear' | 'deliver' | 'magnet' | 'shield' | 'double';
 
 /** 地图上的一个可拾取道具。 */
 export interface PowerUp {

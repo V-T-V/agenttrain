@@ -5,8 +5,8 @@
 import {
   INITIAL_STATIONS,
   MIN_STATION_DISTANCE,
-  PASSENGER_INTERVAL,
   POWERUP_INTERVAL,
+  SPECIAL_STATION_CHANCE,
   STATION_INTERVAL,
   WORLD_HEIGHT,
   WORLD_MARGIN,
@@ -14,17 +14,17 @@ import {
 } from './config.ts';
 import {
   ALL_SHAPES,
+  type Difficulty,
   type GameState,
   type Passenger,
   type Scenario,
   type Shape,
   type Station,
+  type StationKind,
 } from './types.ts';
 import { Rng } from '../utils/rng.ts';
 import { dist } from './geometry.ts';
-
-// nextPassengerIn 的初值直接用乘客生成间隔常量。
-const NEXT_PASSENGER_DEFAULT = PASSENGER_INTERVAL;
+import { paramsFor } from './difficulty.ts';
 
 /** 默认剧本（未接入 AI 或离线时使用）。中性的标准难度。 */
 export function defaultScenario(): Scenario {
@@ -34,12 +34,12 @@ export function defaultScenario(): Scenario {
     trainSpeedMultiplier: 1,
     stationIntervalMultiplier: 1,
     events: [],
-    deliverTarget: 60,
+    deliverTarget: 480,
   };
 }
 
 /** 创建一份全新的游戏状态（ready 阶段）。 */
-export function createInitialState(seed: number): GameState {
+export function createInitialState(seed: number, difficulty: Difficulty = 'normal'): GameState {
   const rng = new Rng(seed);
   const stations: Station[] = [];
   let nextId = 0;
@@ -50,6 +50,7 @@ export function createInitialState(seed: number): GameState {
       stations.push(st);
     }
   }
+  const dp = paramsFor(difficulty);
   return {
     phase: 'ready',
     stations,
@@ -57,7 +58,7 @@ export function createInitialState(seed: number): GameState {
     trains: [],
     delivered: 0,
     elapsed: 0,
-    nextPassengerIn: NEXT_PASSENGER_DEFAULT,
+    nextPassengerIn: dp.passengerInterval,
     nextStationIn: STATION_INTERVAL,
     unlockedShapes: 3, // 开局只开放前三种形状
     nextStationId: nextId,
@@ -67,11 +68,19 @@ export function createInitialState(seed: number): GameState {
     eventQueue: [],
     activeEvents: [],
     powerUps: [],
-    inventory: { speed: 0, clear: 0, deliver: 0 },
+    inventory: { speed: 0, clear: 0, deliver: 0, magnet: 0, shield: 0, double: 0 },
     speedBoostTimer: 0,
     combo: { count: 0, timer: 0 },
+    maxCombo: 0,
     nextPowerUpIn: POWERUP_INTERVAL,
     nextPowerUpId: 0,
+    difficulty,
+    capacity: dp.capacity,
+    overloadGrace: dp.overloadGrace,
+    passengerInterval: dp.passengerInterval,
+    trainSpeed: dp.trainSpeed,
+    magnetTimer: 0,
+    doubleScoreTimer: 0,
   };
 }
 
@@ -95,10 +104,22 @@ function spawnStationCandidate(rng: Rng, existing: Station[]): Station | null {
         pos,
         passengers: [],
         overloadTimer: 0,
+        kind: pickStationKind(rng, existing.length),
       };
     }
   }
   return null;
+}
+
+/**
+ * 选站点种类：开局前几个站点固定 normal（避免一开始就混乱）；
+ * 站点变多后小概率出现 transfer / bonus 特殊站点。
+ */
+function pickStationKind(rng: Rng, totalStations: number): StationKind {
+  if (totalStations < 5) return 'normal';
+  if (!rng.chance(SPECIAL_STATION_CHANCE)) return 'normal';
+  // transfer 与 bonus 各一半
+  return rng.chance(0.5) ? 'transfer' : 'bonus';
 }
 
 /**

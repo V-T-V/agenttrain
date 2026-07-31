@@ -5,6 +5,7 @@
 import type { AIClient, Message } from './types.ts';
 import type { GameState, Shape } from '../game/types.ts';
 import { describeActive } from '../game/events.ts';
+import { shapeGlyph } from '../game/shapes.ts';
 
 /** 一条结构化建议：描述要做什么 + 涉及的形状（用于高亮）。 */
 export interface Advice {
@@ -36,11 +37,12 @@ const SYSTEM_PROMPT = `你是迷你地铁调度游戏的策略顾问。玩家会
 
 /** 把游戏状态序列化成简短文本快照（喂给 LLM）。纯函数。 */
 export function serializeSnapshot(state: GameState): string {
+  const cap = state.capacity;
   const stationLines = state.stations.map((s) => {
     const wait = s.passengers.length;
     const targets = countTargets(s.passengers);
-    const overload = s.passengers.length >= 6 ? '⚠️过载' : '';
-    return `  - ${shapeName(s.shape)}站(id${s.id}) 等待${wait}/6 ${overload} 去往:${targets}`;
+    const overload = wait >= cap ? '⚠️过载' : '';
+    return `  - ${shapeName(s.shape)}站(id${s.id}) 等待${wait}/${cap} ${overload} 去往:${targets}`;
   });
 
   const lineLines = state.lines.map((l, i) => {
@@ -144,17 +146,7 @@ function clampStr(v: string, min: number, max: number): string {
   return v.length > max ? v.slice(0, max) : v.length < min ? v.padEnd(min, '。') : v;
 }
 
+/** 形状 → 单字符展示。委托给 shapes.ts 的统一实现（消除重复）。 */
 export function shapeName(s: Shape): string {
-  switch (s) {
-    case 'circle':
-      return '○';
-    case 'triangle':
-      return '△';
-    case 'square':
-      return '□';
-    case 'diamond':
-      return '◇';
-    case 'star':
-      return '☆';
-  }
+  return shapeGlyph(s);
 }
