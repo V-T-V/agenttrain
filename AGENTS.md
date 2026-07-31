@@ -20,13 +20,28 @@ Mini Metro 风的**火车调度小游戏**。画线连接站点，让列车把�
 
 **较完整的可玩原型。** 游戏核心 + AI 层都落地。
 
-- **游戏核心**（src/game/）：simulation / state / types / config / events / geometry / powerups
+- **游戏核心**（src/game/，18 个文件）：simulation / state / types / config / events / eventRegistry / geometry / powerups / powerupRegistry / difficulty / highscore / achievements / stats / shapes / camera / audio / persist / tutorial
 - **AI 层**（src/ai/）：advisor（顾问）/ autopilot（自动驾驶）/ client / scenario / tools / types
 - **AI 后端**（server/）：index.ts + env.ts + retry.ts，autopilot 推理服务
 - **渲染/输入**（src/）：main.ts / render.ts / input.ts
-- **测试 17 个文件 / 190 个用例**：simulation / events / geometry / powerups / rng / scenario / advisor / persist / camera / difficulty / highscore / tutorial / specials / world / server / render-smoke / achievements
+- **测试 23 个文件 / 316 个用例**（全绿）：simulation(+overload 深层) / events(+deep) / geometry / powerups(+deep) / rng / scenario / advisor / ai-advisor-autopilot-edge / persist / camera / difficulty / highscore / tutorial / specials / world / server / render-smoke / achievements / stats / registry
 
-`simulation.ts` 确认：line 46 `export function step(state, dt, rng): GameState`——纯函数式状态步进，不 import DOM。
+`simulation.ts` 确认：line 47 `export function step(state, dt, rng): GameState`——纯函数式状态步进，不 import DOM。
+
+### 模块完成度
+
+| 模块 | 状态 | 测试 |
+| ---- | ---- | ---- |
+| simulation（核心步进/装卸/过载/线路结构） | ✅ 完成 | simulation + simulation-overload（精确帧数/多站/恢复） |
+| powerups（6 道具 + 连击） | ✅ 完成 | powerups + powerups-deep（时长/刷新/冲突） |
+| events（剧本调度） | ✅ 完成（已修 pumpEvents 漏触发 bug） | events + events-deep（同时刻/surge 翻倍/形状解锁） |
+| difficulty（四档） | ✅ 完成（新增 Expert） | difficulty（四档差异化） |
+| achievements（22 个） | ✅ 完成（新增 expert 成就） | achievements（边界 + 注册表完整性） |
+| stats（本局统计） | ✅ 完成（新增模块） | stats（效率/完成度/格式化） |
+| highscore（按档最高分） | ✅ 完成（四档 + 向后兼容） | highscore |
+| AI 层（advisor/autopilot/scenario） | ✅ 完成 | advisor + ai-advisor-autopilot-edge + scenario + server |
+| 渲染/输入 | ✅ 完成 | render-smoke |
+| persist / camera / tutorial / audio | ✅ 完成 | persist / camera / tutorial |
 
 ## 技术栈与架构
 
@@ -38,7 +53,9 @@ Mini Metro 风的**火车调度小游戏**。画线连接站点，让列车把�
 src/
 ├── main.ts, input.ts, render.ts, style.css
 ├── ai/         advisor.ts, autopilot.ts, client.ts, scenario.ts, tools.ts, types.ts
-├── game/       simulation.ts, state.ts, types.ts, config.ts, events.ts, geometry.ts, powerups.ts
+├── game/       simulation.ts, state.ts, types.ts, config.ts, events.ts, eventRegistry.ts,
+│               geometry.ts, powerups.ts, powerupRegistry.ts, difficulty.ts, highscore.ts,
+│               achievements.ts, stats.ts, shapes.ts, camera.ts, audio.ts, persist.ts, tutorial.ts
 └── utils/rng.ts
 server/
 ├── index.ts, env.ts, retry.ts    # AI autopilot 后端
@@ -52,7 +69,7 @@ npm run dev          # 仅 vite（游戏前端）
 npm run dev:all      # concurrently：vite + server（启用 AI 顾问/自动驾驶）
 npm run server       # 仅 AI 后端
 npm run build        # 生产构建
-npm test             # 190 个测试用例
+npm test             # 316 个测试用例
 npm run type-check / lint / format
 ```
 
@@ -67,6 +84,19 @@ npm run type-check / lint / format
 ## 与其他项目的关系
 
 独立项目。属游戏系。虽然名为 "agent-train"，AI 顾问是其特色，但不依赖工作区其他 Agent 项目（agentloop/agentresearch）的代码。
+
+## 已知修复（近期）
+
+- **events.pumpEvents 连续触发漏事件**：splice 后误 `i++`，导致多个事件按序到点时每隔一个被跳过。已修（splice 后不递增 i）。
+- **surge 事件从不触发额外乘客**：simulation 调 `isEventActive('surge')` 未传 shape，而 surge 的 isActive 需要 shape 才返回 true。已改为直接检查 active 列表是否存在 surge。
+
+## 下一步（Next Steps）
+
+- **平衡性**：专家档（capacity 4 / grace 3s）与稀有形状解锁节奏需实机调参。
+- **更多成就**：可加「单线运 200 人」「全程无满载」「全站点解锁」等长线目标成就。
+- **AI 顾问**：把 stats 模块的效率/最长线路喂给 advisor，让建议更数据驱动。
+- **存档兼容**：难度/成就键名带版本号（`-v1`），未来调参需考虑迁移。
+- **可视化**：GameOver 面板可展示最长线路长度、完成度进度条等更多 stats 字段。
 
 ## 备注
 
