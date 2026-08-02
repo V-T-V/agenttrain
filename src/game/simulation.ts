@@ -46,7 +46,10 @@ import type { Rng } from '../utils/rng.ts';
  */
 export function step(state: GameState, dt: number, rng: Rng): GameState {
   if (state.phase !== 'running') return state;
-  if (dt <= 0) return state;
+  // 防御 NaN / Infinity / 非正 dt：NaN 与非正数用「!(dt > 0)」一并拦截；
+  // Infinity 用 Number.isFinite 单独拦截（避免 spawnTimers 里 `nextPassengerIn -= Infinity`
+  // 变成 -Infinity 触发无限循环）。这些输入对游戏无意义，直接短路最安全。
+  if (!(dt > 0) || !Number.isFinite(dt)) return state;
 
   state.elapsed += dt;
 
@@ -82,7 +85,9 @@ function spawnTimers(state: GameState, dt: number, rng: Rng): void {
   );
 
   state.nextPassengerIn -= dt;
-  while (state.nextPassengerIn <= 0) {
+  // 安全上限：极端 dt（虽 step 已拦截 Infinity/NaN，仍兜底防其它入口引入的负无穷）
+  let spawnGuard = 1000;
+  while (state.nextPassengerIn <= 0 && spawnGuard-- > 0) {
     state.nextPassengerIn += interval;
     spawnPassenger(state, rng);
     // 「高峰」事件期间额外多刷一名乘客（任意 shape 的 surge 都生效）。
