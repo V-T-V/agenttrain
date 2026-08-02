@@ -1,11 +1,17 @@
 // 顾问与工具单测：serializeSnapshot / parseAdvice / mockAdvice + autopilot 工具映射。
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mockAdvice, parseAdvice, serializeSnapshot, shapeName } from '../src/ai/advisor.ts';
+import {
+  lineStrategyAdvice,
+  mockAdvice,
+  parseAdvice,
+  serializeSnapshot,
+  shapeName,
+} from '../src/ai/advisor.ts';
 import { buildAutopilotTools } from '../src/ai/tools.ts';
 import { createInitialState } from '../src/game/state.ts';
 import { createLine } from '../src/game/simulation.ts';
-import type { GameState } from '../src/game/types.ts';
+import type { GameState, LineColor, Shape, Station } from '../src/game/types.ts';
 
 function runningState(): GameState {
   const s = createInitialState(1);
@@ -142,4 +148,120 @@ test('remove_line 工具按颜色删除', () => {
   const res = remove.execute({ color });
   assert.equal((res as { ok: boolean }).ok, true);
   assert.equal(s.lines.length, 0);
+});
+
+// ---------- lineStrategyAdvice（多线路策略评估集成） ----------
+
+/** 构造干净 running 态、关闭干扰机制、清空初始站点。 */
+function bareStrategyState(capacity = 6): GameState {
+  const s = createInitialState(1);
+  s.phase = 'running';
+  s.capacity = capacity;
+  s.nextPowerUpIn = 1e9;
+  s.nextPassengerIn = 1e9;
+  s.nextStationIn = 1e9;
+  s.stations = [];
+  s.lines = [];
+  s.trains = [];
+  return s;
+}
+
+function st(id: number, shape: Shape, x: number, y: number, passengers = 0): Station {
+  return {
+    id,
+    shape,
+    pos: { x, y },
+    passengers: Array.from({ length: passengers }, () => ({ target: 'square' as const })),
+    overloadTimer: 0,
+    kind: 'normal',
+  };
+}
+
+/** 串一条线路并配一列载客列车。 */
+function line(
+  state: GameState,
+  color: LineColor,
+  stops: Station[],
+  onboard: number,
+): void {
+  for (const s of stops) {
+    if (!state.stations.some((x) => x.id === s.id)) state.stations.push(s);
+  }
+  const id = state.nextLineId++;
+  state.lines.push({ id, color, stops: stops.map((s) => s.id) });
+  state.trains.push({
+    lineId: id,
+    segment: 0,
+    t: 0,
+    direction: 1,
+    passengers: Array.from({ length: onboard }, () => ({ target: 'square' as const })),
+    dwellTimer: 0,
+  });
+}
+
+test('lineStrategyAdvice: 无线路 → observe', () => {
+  const s = bareStrategyState();
+  const a = lineStrategyAdvice(s);
+  assert.equal(a.action, 'observe');
+});
+
+test('lineStrategyAdvice: 仅一条线 → observe（单线无策略意义）', () => {
+  const s = bareStrategyState();
+  line(s, 'red', [st(1, 'circle', 0, 0), st(2, 'triangle', 100, 0)], 3);
+  const a = lineStrategyAdvice(s);
+  assert.equal(a.action, 'observe');
+});
+
+test('lineStrategyAdvice: 最差线评分 <35 → 建议 remove 重构', () => {
+  const s = bareStrategyState();
+  // 高分线
+  line(
+    s,
+    'red',
+    [st(1, 'circle', 0, 0), st(2, 'triangle', 1500, 0), st(3, 'square', 3000, 0)],
+    6,
+  );
+  // 极低分线（空载、单形状、远端、不可延伸 → overall 必然 < 35）
+  line(s, 'blue', [st(4, 'diamond', 9000, 0), st(5, 'diamond', 9100, 0)], 0);
+  const a = lineStrategyAdvice(s);
+  assert.equal(a.action, 'remove');
+  assert.ok(a.comment.includes('blue'), `应点名 blue 线：${a.comment}`);
+  assert.ok(a.comment.includes('重构'));
+});
+
+test('lineStrategyAdvice: 最差线拥堵且可延伸 → 建议 extend 分流', () => {
+  const s = bareStrategyState();
+  // 线路 A：优质线
+  line(
+    s,
+    'red',
+    [st(1, 'circle', 0, 0), st(2, 'triangle', 1500, 0), st(3, 'square', 3000, 0)],
+    6,
+  );
+  // 线路 B：评分中等（>=35）但沿线有拥堵站，且端点可延伸
+  // 用 2 站、适当载客使其 overall 落在 35-60 区间，并给端点附近放可延伸站
+  line(s, 'blue', [st(4, 'star', 5000, 0, 5), st(5, 'diamond', 5100, 0, 0)], 2);
+  // blue 线 head(star@5000) 附近放一个未连接站 → 触发可延伸
+  s.stations.push(st(6, 'square', 5050, 0));
+  const a = lineStrategyAdvice(s);
+  assert.equal(a.action, 'extend');
+  assert.ok(a.comment.includes('blue'));
+});
+
+test('lineStrategyAdvice: 最差线评分适中且无拥堵 → observe 附策略点评', () => {
+  const s = bareStrategyState();
+  // 两条对称、评分相近、均无拥堵的线
+  line(s, 'red', [st(1, 'circle', 0, 0), st(2, 'triangle', 100, 0)], 3);
+  line(s, 'blue', [st(3, 'square', 200, 0), st(4, 'star', 300, 0)], 3);
+  const a = lineStrategyAdvice(s);
+  assert.equal(a.action, 'observe');
+  assert.ok(a.comment.length > 0);
+});
+
+test('serializeSnapshot 含策略评估行（均分/拥堵/利用率）', () => {
+  const s = bareStrategyState();
+  line(s, 'red', [st(1, 'circle', 0, 0), st(2, 'triangle', 100, 0)], 3);
+  const snap = serializeSnapshot(s);
+  assert.ok(snap.includes('策略:'), `应含策略行：${snap}`);
+  assert.ok(snap.includes('均分'));
 });

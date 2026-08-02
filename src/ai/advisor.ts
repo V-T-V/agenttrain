@@ -6,6 +6,7 @@ import type { AIClient, Message } from './types.ts';
 import type { GameState, Shape } from '../game/types.ts';
 import { describeActive } from '../game/events.ts';
 import { shapeGlyph } from '../game/shapes.ts';
+import { summarizeStrategy, evaluateLine } from '../game/lineStrategy.ts';
 
 /** 一条结构化建议：描述要做什么 + 涉及的形状（用于高亮）。 */
 export interface Advice {
@@ -55,12 +56,19 @@ export function serializeSnapshot(state: GameState): string {
   });
 
   const active = describeActive(state.activeEvents);
+  // 线路策略评估：告诉 LLM 哪条线最差、全局拥堵/利用率概况，便于它给出重构建议。
+  const strategy = summarizeStrategy(state);
+  const strategyLine =
+    strategy.lineCount > 0
+      ? `  策略: 均分${strategy.averageScore} 全局拥堵${strategy.totalCongestedStops} 利用率${(strategy.globalTrainUtilization * 100).toFixed(0)}% 形状覆盖${strategy.globalShapeCoverage}/5 — ${strategy.advice}`
+      : '  策略: (尚无线路)';
   return [
     `时间: ${Math.floor(state.elapsed)}s  已送达: ${state.delivered}/${state.scenario.deliverTarget}  线路: ${state.lines.length}/7${active ? `  事件: ${active}` : ''}`,
     '站点:',
     ...stationLines,
     '线路:',
     ...(lineLines.length ? lineLines : ['  (无线路)']),
+    strategyLine,
   ].join('\n');
 }
 
@@ -122,6 +130,56 @@ export function mockAdvice(state: GameState): Advice {
     fromShape: worst.shape,
     toShape: topTarget,
   };
+}
+
+/**
+ * 线路策略建议：基于多线路评估系统，给出「重构/延伸最差线路」的结构化建议。
+ * 纯函数（只读 state），用于离线启发式增强与 UI 展示。
+ *
+ * 决策规则：
+ *  - 无线路或仅一条线 → 返回 observe（策略对单线无意义）。
+ *  - 最差线路 overall < 35 且线路数 >= 2 → 建议 remove 该线（腾出线路槽）。
+ *  - 否则若最差线路某一端可延伸且该端存在拥堵站 → 建议 extend。
+ *  - 否则 → observe 并附上策略点评（strategy.advice）。
+ */
+export function lineStrategyAdvice(state: GameState): Advice {
+  const strategy = summarizeStrategy(state);
+  if (strategy.lineCount < 2 || strategy.worstLineId === null) {
+    return { comment: strategy.advice, action: 'observe' };
+  }
+  const worstLine = state.lines.find((l) => l.id === strategy.worstLineId);
+  if (!worstLine) {
+    return { comment: strategy.advice, action: 'observe' };
+  }
+  const score = evaluateLine(state, worstLine);
+
+  // 最差线得分过低 → 建议删除重构
+  if (score.overall < 35) {
+    return {
+      comment: `${worstLine.color}线综合评分仅 ${score.overall}，建议拆除重构。`,
+      action: 'remove',
+    };
+  }
+
+  // 找最差线路上最堵的站，若端点可延伸则建议延伸到其乘客目标形状
+  const stopsOnLine = worstLine.stops
+    .map((sid) => state.stations.find((s) => s.id === sid))
+    .filter((s): s is NonNullable<typeof s> => Boolean(s));
+  if (stopsOnLine.length > 0 && score.congestedStops > 0) {
+    const worstStop = [...stopsOnLine].sort((a, b) => b.passengers.length - a.passengers.length)[0]!;
+    const topTarget = worstStop.passengers[0]?.target;
+    const canExtend = score.expandableHead || score.expandableTail;
+    if (topTarget && canExtend) {
+      return {
+        comment: `${worstLine.color}线沿线拥堵，建议延伸到${shapeName(topTarget)}站分流。`,
+        action: 'extend',
+        fromShape: worstStop.shape,
+        toShape: topTarget,
+      };
+    }
+  }
+
+  return { comment: strategy.advice, action: 'observe' };
 }
 
 function extractJson(text: string): string | null {
