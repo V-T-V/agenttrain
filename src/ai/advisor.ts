@@ -7,6 +7,10 @@ import type { GameState, Shape } from '../game/types.ts';
 import { describeActive } from '../game/events.ts';
 import { shapeGlyph } from '../game/shapes.ts';
 import { summarizeStrategy, evaluateLine } from '../game/lineStrategy.ts';
+import {
+  congestionSnapshotLine as formatCongestionLine,
+  type CongestionHistory,
+} from '../game/congestion.ts';
 
 /** 一条结构化建议：描述要做什么 + 涉及的形状（用于高亮）。 */
 export interface Advice {
@@ -37,7 +41,10 @@ const SYSTEM_PROMPT = `你是迷你地铁调度游戏的策略顾问。玩家会
 优先缓解拥堵最严重的站点。`;
 
 /** 把游戏状态序列化成简短文本快照（喂给 LLM）。纯函数。 */
-export function serializeSnapshot(state: GameState): string {
+export function serializeSnapshot(
+  state: GameState,
+  congestion?: CongestionHistory,
+): string {
   const cap = state.capacity;
   const stationLines = state.stations.map((s) => {
     const wait = s.passengers.length;
@@ -69,6 +76,7 @@ export function serializeSnapshot(state: GameState): string {
     '线路:',
     ...(lineLines.length ? lineLines : ['  (无线路)']),
     strategyLine,
+    ...(congestion ? [formatCongestionLine(state, congestion)] : []),
   ].join('\n');
 }
 
@@ -80,10 +88,14 @@ function countTargets(passengers: { target: Shape }[]): string {
 }
 
 /** 请求一条建议。 */
-export async function askAdvice(ai: AIClient, state: GameState): Promise<Advice> {
+export async function askAdvice(
+  ai: AIClient,
+  state: GameState,
+  congestion?: CongestionHistory,
+): Promise<Advice> {
   const messages: Message[] = [
     { role: 'system', content: SYSTEM_PROMPT },
-    { role: 'user', content: serializeSnapshot(state) },
+    { role: 'user', content: serializeSnapshot(state, congestion) },
   ];
   try {
     const reply = await ai.chat({ messages });

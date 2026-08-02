@@ -6,6 +6,7 @@ import type { AIClient, Message } from './types.ts';
 import { buildAutopilotTools } from './tools.ts';
 import type { GameState } from '../game/types.ts';
 import { serializeSnapshot } from './advisor.ts';
+import type { CongestionHistory } from '../game/congestion.ts';
 
 const SYSTEM_PROMPT = `你是迷你地铁调度游戏的自动驾驶 AI。
 每次给你当前局势和三个工具：create_line / extend_line / remove_line。
@@ -33,9 +34,13 @@ export interface AutopilotAction {
  *  - 工具内部按形状重新解析站点，即使局势变化也不会访问失效 id，故不会崩溃。
  * 因此「陈旧状态」仅表现为 AI 决策与执行瞬间的微小偏差，属可接受设计取舍。
  */
-export async function autopilotTick(ai: AIClient, state: GameState): Promise<AutopilotAction> {
+export async function autopilotTick(
+  ai: AIClient,
+  state: GameState,
+  congestion?: CongestionHistory,
+): Promise<AutopilotAction> {
   // 上下文快照：await 前冻结一份局势文本，保证 LLM 推理期间视图不变。
-  const snapshotText = serializeSnapshot(state);
+  const snapshotText = serializeSnapshot(state, congestion);
   const tools = buildAutopilotTools(state);
   const messages: Message[] = [
     { role: 'system', content: SYSTEM_PROMPT },

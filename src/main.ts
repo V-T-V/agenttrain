@@ -65,6 +65,12 @@ import { autopilotTick } from './ai/autopilot.ts';
 import { serializeSnapshot } from './ai/advisor.ts';
 import type { AIClient, Message } from './ai/types.ts';
 import { saveGame, loadGame, clearSave } from './game/persist.ts';
+import {
+  SAMPLE_INTERVAL,
+  createCongestionHistory,
+  sample as sampleCongestion,
+  type CongestionHistory,
+} from './game/congestion.ts';
 
 const canvas = document.querySelector<HTMLCanvasElement>('#game')!;
 const ctx = canvas.getContext('2d')!;
@@ -81,6 +87,10 @@ const AUTOSAVE_INTERVAL = 5;
 let autosaveIn = AUTOSAVE_INTERVAL;
 /** gameover 时存档只清除一次的标志，避免每帧重复 clearSave。 */
 let gameoverSaveCleared = false;
+/** 拥堵预测历史：每 SAMPLE_INTERVAL 秒采样一次各站等待人数，供预测即将满载的站点。 */
+let congestionHistory: CongestionHistory = createCongestionHistory();
+/** 拥堵采样倒计时（秒）。 */
+let congestionSampleIn = SAMPLE_INTERVAL;
 
 // AI 状态
 let ai: AIClient | null = null;
@@ -190,6 +200,8 @@ async function restart(useNewScenario: boolean): Promise<void> {
   nextAdviceIn = 30;
   nextAutopilotIn = 5;
   autosaveIn = AUTOSAVE_INTERVAL;
+  congestionHistory = createCongestionHistory();
+  congestionSampleIn = SAMPLE_INTERVAL;
   powerUpsUsed = 0;
   linesBuilt = 0;
   newlyUnlocked = [];
@@ -225,7 +237,7 @@ async function requestAdvice(): Promise<void> {
   adviceBusy = true;
   aiStatus = 'AI 思考中…';
   try {
-    advice = await askAdvice(ai, state);
+    advice = await askAdvice(ai, state, congestionHistory);
   } finally {
     adviceBusy = false;
     aiStatus = ai.online ? 'AI 在线 ✦' : 'AI 离线（Mock）';
@@ -238,7 +250,7 @@ async function runAutopilot(): Promise<void> {
   if (!ai || autopilotBusy || state.phase !== 'running') return;
   autopilotBusy = true;
   try {
-    const action = await autopilotTick(ai, state);
+    const action = await autopilotTick(ai, state, congestionHistory);
     if (action.acted) aiStatus = `AI 自动: ${action.summary}`;
   } finally {
     autopilotBusy = false;
@@ -555,6 +567,12 @@ function frame(now: number): void {
       nextAutopilotIn -= dt;
       if (nextAutopilotIn <= 0 && !autopilotBusy) void runAutopilot();
     }
+    // 拥堵预测采样：每 SAMPLE_INTERVAL 秒记录各站等待人数，供预测即将满载的站点。
+    congestionSampleIn -= dt;
+    if (congestionSampleIn <= 0) {
+      congestionHistory = sampleCongestion(state, congestionHistory, state.elapsed);
+      congestionSampleIn += SAMPLE_INTERVAL;
+    }
     // 自动存档：每 AUTOSAVE_INTERVAL 秒序列化 state + Rng 状态，刷新可续局。
     autosaveIn -= dt;
     if (autosaveIn <= 0) {
@@ -643,7 +661,7 @@ window.addEventListener('resize', onResize);
   },
   restart: () => restart(true),
   stationAt: (p: Vec2) => stationAt(state, p),
-  snapshot: () => serializeSnapshot(state),
+  snapshot: () => serializeSnapshot(state, congestionHistory),
   setAuto: (on: boolean) => {
     aiMode = on ? 'auto' : 'manual';
   },
