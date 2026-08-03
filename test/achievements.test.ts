@@ -247,3 +247,66 @@ test('成就进度计数与解锁数一致', () => {
   assert.equal(p.total, ACHIEVEMENTS.length);
   assert.ok(p.unlocked > 0);
 });
+
+// ---------- D7 新增：网络结构型成就 ----------
+
+test('极简主义：≤3 条线送达 100 解锁 minimalist', () => {
+  store.clear();
+  const newly = checkAchievements(stats({ delivered: 100, linesBuilt: 3 }));
+  assert.ok(newly.includes('minimalist'));
+});
+
+test('极简主义：4 条线送达 100 不解锁', () => {
+  store.clear();
+  const newly = checkAchievements(stats({ delivered: 100, linesBuilt: 4 }));
+  assert.ok(!newly.includes('minimalist'), '线路数超 3 不应解锁极简');
+});
+
+test('极简主义：≤3 条线但送达不足 100 不解锁', () => {
+  store.clear();
+  const newly = checkAchievements(stats({ delivered: 99, linesBuilt: 3 }));
+  assert.ok(!newly.includes('minimalist'), '送达不足不应解锁极简');
+});
+
+test('极简主义：0 条线送达 100 仍解锁（边界 linesBuilt<=3）', () => {
+  store.clear();
+  const newly = checkAchievements(stats({ delivered: 100, linesBuilt: 0 }));
+  assert.ok(newly.includes('minimalist'));
+});
+
+test('蜘蛛网：建立 20 条线解锁 sprawl', () => {
+  store.clear();
+  const newly = checkAchievements(stats({ linesBuilt: 20 }));
+  assert.ok(newly.includes('sprawl'));
+});
+
+test('蜘蛛网：建立 19 条线不解锁（边界）', () => {
+  store.clear();
+  const newly = checkAchievements(stats({ linesBuilt: 19 }));
+  assert.ok(!newly.includes('sprawl'), '19 条线未达 20 阈值');
+});
+
+test('minimalist 与 line-master 互斥不串扰：3线送达100 不触发 line-master', () => {
+  store.clear();
+  const newly = checkAchievements(stats({ delivered: 100, linesBuilt: 3 }));
+  assert.ok(newly.includes('minimalist'));
+  assert.ok(!newly.includes('line-master'), 'line-master 需 ≥10 线');
+});
+
+test('D7 新增后成就总数 ≥ 22 且 id 唯一', () => {
+  const ids = ACHIEVEMENTS.map((a) => a.id);
+  assert.ok(ACHIEVEMENTS.length >= 22, `当前 ${ACHIEVEMENTS.length} 个成就`);
+  assert.equal(new Set(ids).size, ids.length, '含新成就 id 仍唯一');
+  assert.ok(ids.includes('minimalist'));
+  assert.ok(ids.includes('sprawl'));
+});
+
+test('minimalist/sprawl 字段非空', () => {
+  const mini = ACHIEVEMENTS.find((a) => a.id === 'minimalist')!;
+  const sprawl = ACHIEVEMENTS.find((a) => a.id === 'sprawl')!;
+  for (const a of [mini, sprawl]) {
+    assert.ok(a.name.length > 0);
+    assert.ok(a.icon.length > 0);
+    assert.ok(a.hint.length > 0);
+  }
+});

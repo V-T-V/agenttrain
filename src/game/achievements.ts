@@ -42,6 +42,9 @@ export const ACHIEVEMENTS: readonly Achievement[] = [
   { id: 'all-difficulty', name: '全难通', icon: '🎖️', hint: '三个难度都达成过送达目标' },
   { id: 'combo-master', name: '极限连击', icon: '🌀', hint: '达成 100 连击' },
   { id: 'speedrun', name: '闪电通关', icon: '⚡', hint: '3 分钟内送达 50+' },
+  // 网络结构型成就（D7 新增：奖励不同的线路规划风格）
+  { id: 'minimalist', name: '极简主义', icon: '🎯', hint: '用 ≤3 条线路送达 100 名乘客' },
+  { id: 'sprawl', name: '蜘蛛网', icon: '🕸️', hint: '单局建立 20 条线路' },
 ] as const;
 
 const META_MAP: Record<string, Achievement> = Object.fromEntries(
@@ -131,6 +134,10 @@ export function checkAchievements(stats: GameOverStats): string[] {
   if (stats.powerUpsUsed === 0 && stats.delivered >= 50) tryUnlock('no-power-clear');
   // 线路编织者
   if (stats.linesBuilt >= 10) tryUnlock('line-master');
+  // 极简主义：用很少的线路（≤3）高效送达 100+，奖励精炼的网络设计
+  if (stats.linesBuilt <= 3 && stats.delivered >= 100) tryUnlock('minimalist');
+  // 蜘蛛网：建立大量（≥20）线路，奖励（或至少记录）扩张式风格
+  if (stats.linesBuilt >= 20) tryUnlock('sprawl');
   // 生存
   if (stats.elapsedSec >= 300) tryUnlock('survivor-5min');
   if (stats.elapsedSec >= 600) tryUnlock('survivor-10min');
