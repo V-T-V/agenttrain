@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import {
   lineStrategyAdvice,
   mockAdvice,
+  modeTarget,
   parseAdvice,
   serializeSnapshot,
   shapeName,
@@ -88,6 +89,45 @@ test('mockAdvice 无乘客时返回 observe', () => {
   const s = runningState();
   const a = mockAdvice(s);
   assert.equal(a.action, 'observe');
+});
+
+// ---------- modeTarget（D6 改进：建议最常见目标而非任意第一名） ----------
+
+test('modeTarget 返回出现次数最多的目标形状', () => {
+  const ps = [
+    { target: 'square' as Shape },
+    { target: 'square' as Shape },
+    { target: 'square' as Shape },
+    { target: 'triangle' as Shape },
+  ];
+  assert.equal(modeTarget(ps), 'square');
+});
+
+test('modeTarget 单元素返回该元素', () => {
+  assert.equal(modeTarget([{ target: 'star' }]), 'star');
+});
+
+test('modeTarget 并列时稳定返回首个最大者', () => {
+  const ps = [
+    { target: 'circle' as Shape },
+    { target: 'triangle' as Shape },
+  ];
+  // circle 与 triangle 各 1 票并列，按 Map 插入序 circle 先 → 返回 circle
+  assert.equal(modeTarget(ps), 'circle');
+});
+
+test('mockAdvice 建议的目标是最常见目标，而非第一名乘客的目标', () => {
+  const s = runningState();
+  // 站 0 是 circle；乘客里 triangle 多 square 少，但 square 排第一
+  s.stations[0]!.passengers = [
+    { target: 'square' as Shape },
+    { target: 'triangle' as Shape },
+    { target: 'triangle' as Shape },
+    { target: 'triangle' as Shape },
+  ];
+  const a = mockAdvice(s);
+  assert.equal(a.toShape, 'triangle', '应建议连到最多人想去的 triangle 而非排第一的 square');
+  assert.equal(a.fromShape, 'circle');
 });
 
 test('shapeName 五种形状都有输出', () => {

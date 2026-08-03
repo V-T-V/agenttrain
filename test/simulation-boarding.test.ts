@@ -19,7 +19,7 @@ import { Rng } from '../src/utils/rng.ts';
 import { createInitialState } from '../src/game/state.ts';
 import { createLine, extendLine, step } from '../src/game/simulation.ts';
 import { TRAIN_CAPACITY } from '../src/game/config.ts';
-import type { GameState, Station, Train } from '../src/game/types.ts';
+import type { GameState, Station } from '../src/game/types.ts';
 
 const SEG_TIME = 1 / 0.45; // 单段行程时间（trainSpeed=0.45 段/秒）
 

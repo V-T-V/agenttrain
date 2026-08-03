@@ -20,7 +20,7 @@ import {
   LINE_COLOR_ORDER,
 } from '../src/game/simulation.ts';
 import { MAX_LINES, TRAIN_DWELL } from '../src/game/config.ts';
-import type { GameState } from '../src/game/types.ts';
+import type { GameState, LineColor } from '../src/game/types.ts';
 
 /** 构造 running 态、关闭无关定时器的最小状态。 */
 function bareState(seed = 1): GameState {
@@ -242,7 +242,7 @@ test('pickColor 全用完后回退首色（复用）', () => {
   assert.equal(pickColor(new Set()), LINE_COLOR_ORDER[0]);
   // 用了首色 → 跳到第二个
   assert.equal(
-    pickColor(new Set([LINE_COLOR_ORDER[0]])),
+    pickColor(new Set<LineColor>([LINE_COLOR_ORDER[0]!])),
     LINE_COLOR_ORDER[1],
   );
 });

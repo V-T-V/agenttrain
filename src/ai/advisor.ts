@@ -135,13 +135,34 @@ export function mockAdvice(state: GameState): Advice {
   if (!worst || worst.passengers.length === 0) {
     return { comment: '线路通畅，继续保持。', action: 'observe' };
   }
-  const topTarget = worst.passengers[0]!.target;
+  // 取「最常见目标形状」而非任意第一名乘客的目标——更贴近真实运送需求。
+  const topTarget = modeTarget(worst.passengers);
   return {
     comment: `${shapeName(worst.shape)}站拥堵，建议连到${shapeName(topTarget)}站。`,
     action: state.lines.length < 7 ? 'create' : 'extend',
     fromShape: worst.shape,
     toShape: topTarget,
   };
+}
+
+/**
+ * 计算一组乘客中「出现次数最多的目标形状」。
+ * 用于顾问建议：优先连接到最多人想去的目标形状站点，而非任意第一名乘客的目标。
+ * 并列时返回排序靠前的形状（稳定）。
+ */
+export function modeTarget(passengers: { target: Shape }[]): Shape {
+  const counts = new Map<Shape, number>();
+  for (const p of passengers) counts.set(p.target, (counts.get(p.target) ?? 0) + 1);
+  let best: Shape | undefined;
+  let bestN = -1;
+  for (const [shape, n] of counts) {
+    if (n > bestN) {
+      best = shape;
+      bestN = n;
+    }
+  }
+  // passengers 非空时 best 必有值；理论空数组返回 circle 作为兜底（不实际触发）
+  return best ?? 'circle';
 }
 
 /**
@@ -179,7 +200,7 @@ export function lineStrategyAdvice(state: GameState): Advice {
     .filter((s): s is NonNullable<typeof s> => Boolean(s));
   if (stopsOnLine.length > 0 && score.congestedStops > 0) {
     const worstStop = [...stopsOnLine].sort((a, b) => b.passengers.length - a.passengers.length)[0]!;
-    const topTarget = worstStop.passengers[0]?.target;
+    const topTarget = worstStop.passengers.length > 0 ? modeTarget(worstStop.passengers) : undefined;
     const canExtend = score.expandableHead || score.expandableTail;
     if (topTarget && canExtend) {
       return {
