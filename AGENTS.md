@@ -90,6 +90,18 @@ npm run type-check / lint / format
 - **events.pumpEvents 连续触发漏事件**：splice 后误 `i++`，导致多个事件按序到点时每隔一个被跳过。已修（splice 后不递增 i）。
 - **surge 事件从不触发额外乘客**：simulation 调 `isEventActive('surge')` 未传 shape，而 surge 的 isActive 需要 shape 才返回 true。已改为直接检查 active 列表是否存在 surge。
 
+## 深度推进测试缺口分析（D1 基线）
+
+基线 `npm test`：461/461 全绿。基于 src/ 源码扫描，识别出以下**纯函数核心尚未被精细覆盖**的子域（确定性 + 边界）：
+
+- **列车运动**（simulation.ts 内部 `advanceTrain`/`arriveAtStation`）：换向、停留计时 `dwellTimer` 累积、大 dt 单帧多次到站、退化段（同坐标站）、方向交替往返的确定性位置序列。现有 simulation.test 只断言「最终 delivered>0」，未逐帧验证位置。
+- **乘客路径与上车决策**（内部 `reachableShapeSet`/`exchangePassengers`）：transfer 站忽略可达、magnet 忽略可达、TRAIN_CAPACITY(6) 满载边界、目标形状不在可达集则拒上车、bonus 站 ×2、连击 × 双倍 × 奖励三重叠加。
+- **simulation 公共辅助**：`stationIndex` Map 一致性、`linePoints` 在 ≤4 站与 >4 站两个分支、`trainPosition` 退化线路、`lineEndpoints` 空线路、`pickColor` 7 色用尽后复用首色、`LINE_COLOR_ORDER` 顺序。
+- **连击/倍率数学**（powerups.ts）：`comboMultiplier` 精确阶梯（COMBO_STEP=5/COMBO_MULTIPLIER_STEP=0.5）、`scoreMultiplier` = 连击 × 双倍、连击窗口超时归零、`maxCombo` 单调上升。
+- **成就触发**（achievements.ts `checkAchievements`）：幂等（同条件不重复解锁）、`speedrun` ≤180s 严格边界、`no-power-clear` 不用道具、`line-master` ≥10 线、四档通关互不串扰、`all-difficulty` 需四难度全通。
+
+D2-D5 将按上述五个子域逐项补 8-12 用例的确定性测试。
+
 ## 下一步（Next Steps）
 
 - **平衡性**：专家档（capacity 4 / grace 3s）与稀有形状解锁节奏需实机调参。
