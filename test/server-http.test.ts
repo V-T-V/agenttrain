@@ -24,10 +24,9 @@ test('readBody: 空请求体返回空串', async () => {
 test('readBody: 超过 1MB 拒绝并销毁流', async () => {
   // 构造一个大 Buffer（>1MB）分块推送
   const big = Buffer.alloc(1_100_000, 0x61); // 1.1MB 'a'
-  const stream = new EventEmitter() as never;
-  (stream as { destroy?: () => void }).destroy = () => {};
+  const stream: EventEmitter & { destroy: () => void } = new EventEmitter() as never;
   let destroyed = false;
-  (stream as { destroy: () => void }).destroy = () => { destroyed = true; };
+  stream.destroy = () => { destroyed = true; };
 
   // 模拟 data/end 事件
   const promise = readBody(stream as never);
@@ -38,7 +37,7 @@ test('readBody: 超过 1MB 拒绝并销毁流', async () => {
 });
 
 test('readBody: stream error 事件 reject', async () => {
-  const stream = new EventEmitter() as never;
+  const stream: EventEmitter = new EventEmitter();
   const promise = readBody(stream as never);
   stream.emit('error', new Error('连接断开'));
   await assert.rejects(promise, /连接断开/);
