@@ -113,7 +113,7 @@ async function handleChat(req: IncomingMessage, res: ServerResponse): Promise<vo
 }
 
 /** 读取请求体（限定最大 1MB，防滥用）。 */
-function readBody(req: IncomingMessage): Promise<string> {
+export function readBody(req: IncomingMessage): Promise<string> {
   return new Promise((resolveRead, reject) => {
     const chunks: Buffer[] = [];
     let size = 0;
@@ -131,7 +131,7 @@ function readBody(req: IncomingMessage): Promise<string> {
   });
 }
 
-function sendJson(res: ServerResponse, status: number, obj: unknown): void {
+export function sendJson(res: ServerResponse, status: number, obj: unknown): void {
   const json = JSON.stringify(obj);
   res.writeHead(status, {
     'Content-Type': 'application/json; charset=utf-8',
@@ -169,7 +169,11 @@ const server = createServer((req, res) => {
   sendJson(res, 404, { error: 'Not Found' });
 });
 
-server.listen(PORT, () => {
-  console.log(`🤖 agenttrain AI 代理已启动: http://localhost:${PORT}`);
-  console.log(`   模型: ${MODEL}   key 已配置: ${API_KEY ? '是' : '否（将走离线 Mock）'}`);
-});
+// 只在直接运行时启动监听（被 import 时不 listen，便于单测）
+import { fileURLToPath } from 'node:url';
+if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+  server.listen(PORT, () => {
+    console.log(`🤖 agenttrain AI 代理已启动: http://localhost:${PORT}`);
+    console.log(`   模型: ${MODEL}   key 已配置: ${API_KEY ? '是' : '否（将走离线 Mock）'}`);
+  });
+}

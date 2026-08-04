@@ -146,7 +146,12 @@ export function addStation(state: GameState, rng: Rng): boolean {
 
 /** 生成一名乘客：随机选一个「不同于来源站形状」的目标形状。 */
 export function spawnPassenger(state: GameState, rng: Rng): Passenger {
+  // 加固：站点为空时（极端初始化或测试构造）不能 pick，返回一个不挂靠任何站的占位乘客。
+  // 正常游戏里站点恒非空（createInitialState 必生成 INITIAL_STATIONS）。
   const shapes = unlockedShapes(state);
+  if (state.stations.length === 0 || shapes.length === 0) {
+    return { target: 'circle' };
+  }
   const station = rng.pick(state.stations);
   // 目标形状尽量不同于该站自身形状，避免无意义乘客
   let target = rng.pick(shapes);
