@@ -24,7 +24,17 @@ Mini Metro 风的**火车调度小游戏**。画线连接站点，让列车把�
 - **AI 层**（src/ai/）：advisor（顾问）/ autopilot（自动驾驶）/ client / scenario / tools / types
 - **AI 后端**（server/）：index.ts + env.ts + retry.ts，autopilot 推理服务
 - **渲染/输入**（src/）：main.ts / render.ts / input.ts
-- **测试 23 个文件 / 316 个用例**（全绿）：simulation(+overload 深层) / events(+deep) / geometry / powerups(+deep) / rng / scenario / advisor / ai-advisor-autopilot-edge / persist / camera / difficulty / highscore / tutorial / specials / world / server / render-smoke / achievements / stats / registry
+- **测试 33 个文件 / 563 个用例**（全绿）：simulation(+overload+boarding+edge+train-motion+helpers) / events(+deep+sequence) / geometry / powerups(+deep+effects) / rng / scenario / advisor / ai-advisor-autopilot-edge / persist / camera / difficulty / highscore / tutorial / specials / world / server(+http) / render-smoke / achievements / stats / registry / congestion / error-hardening / lineStrategy / simulation-train-motion
+
+### 深度推进记录（deep-r1 ~ deep-r8）
+- **r1**: 基线确认 461 用例 + 读 AGENTS.md
+- **r2**: simulation 乘客上车/可达性/容量 11 用例
+- **r3**: simulation 公共辅助 + 成就精确边界 23 用例
+- **r4**: simulation 公共辅助 + 成就边界 23 用例
+- **r5**: 道具效果端到端 + 计分倍率叠加 13 用例
+- **r6**: 修 AI 顾问 modeTarget 建议 + 4 用例 + type-check 清理
+- **r7**: 新增 minimalist/sprawl 网络结构型成就 + 10 用例
+- **r8**: server/index.ts 条件 listen（可 import 不阻塞）+ readBody/sendJson 9 用例 + error-hardening 275 行加固测试
 
 `simulation.ts` 确认：line 47 `export function step(state, dt, rng): GameState`——纯函数式状态步进，不 import DOM。
 
