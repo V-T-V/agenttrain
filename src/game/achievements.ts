@@ -45,6 +45,8 @@ export const ACHIEVEMENTS: readonly Achievement[] = [
   // 网络结构型成就（D7 新增：奖励不同的线路规划风格）
   { id: 'minimalist', name: '极简主义', icon: '🎯', hint: '用 ≤3 条线路送达 100 名乘客' },
   { id: 'sprawl', name: '蜘蛛网', icon: '🕸️', hint: '单局建立 20 条线路' },
+  // 效率型成就（D6 新增：奖励持续高吞吐）
+  { id: 'efficiency-ace', name: '高效调度', icon: '🚀', hint: '5 分钟内送达 200 名乘客' },
 ] as const;
 
 const META_MAP: Record<string, Achievement> = Object.fromEntries(
@@ -138,6 +140,8 @@ export function checkAchievements(stats: GameOverStats): string[] {
   if (stats.linesBuilt <= 3 && stats.delivered >= 100) tryUnlock('minimalist');
   // 蜘蛛网：建立大量（≥20）线路，奖励（或至少记录）扩张式风格
   if (stats.linesBuilt >= 20) tryUnlock('sprawl');
+  // 高效调度：5 分钟内（≤300s）送达 200+，奖励持续高吞吐的网络（区别于仅 50+ 的 speedrun）
+  if (stats.elapsedSec <= 300 && stats.delivered >= 200) tryUnlock('efficiency-ace');
   // 生存
   if (stats.elapsedSec >= 300) tryUnlock('survivor-5min');
   if (stats.elapsedSec >= 600) tryUnlock('survivor-10min');
@@ -151,4 +155,17 @@ export function checkAchievements(stats: GameOverStats): string[] {
 /** 已解锁数 / 总数。 */
 export function achievementProgress(): { unlocked: number; total: number } {
   return { unlocked: loadAchievements().length, total: ACHIEVEMENTS.length };
+}
+
+/**
+ * 清空已解锁成就（重置进度）。返回是否清除成功（写入空数组）。
+ * 失败静默返回 false。供设置面板「重置成就」按钮调用。
+ */
+export function resetAchievements(): boolean {
+  try {
+    localStorage.removeItem(STORAGE_KEY);
+    return true;
+  } catch {
+    return false;
+  }
 }
