@@ -17,7 +17,7 @@
 - **新手教程 + 暂停菜单**：首次进入 4 步交互引导；暂停可继续/重开/切难度/切 AI。
 - **音效系统**：零依赖 Web Audio 合成，8 种游戏音效；`S` 键静音。
 - **迷你地图**：左下角实时显示整个世界 + 站点/线路/摄像机视口框。
-- **成就系统**：22 个成就（送达里程碑/连击/难度/道具/生存/挑战），localStorage 持久化。
+- **成就系统**：24 个成就（送达里程碑/连击/难度/道具/生存/挑战/网络结构/效率），localStorage 持久化，含「重置进度」API。
 - **本局统计**：结算面板汇总送达/存活时长(mm:ss)/平均效率(人/分钟)/线路数/最高连击。
 - **视口剔除**：跳过摄像机视口外的站点/线路/列车/道具绘制，优化大地图性能。
 - **插件化架构**：道具(`powerupRegistry.ts`)、事件(`eventRegistry.ts`)、成就(`achievements.ts`)全部注册表驱动，加新内容只需追加一个对象，不改核心代码。
@@ -78,7 +78,7 @@
 
 ## 🏆 成就
 
-22 个成就，Game Over 时按本局表现检测并解锁，localStorage 持久化：
+24 个成就，Game Over 时按本局表现检测并解锁，localStorage 持久化：
 
 | 成就         | 条件                       |
 | ------------ | -------------------------- |
@@ -100,6 +100,9 @@
 | 🧰 道具达人  | 单局使用 5 次道具          |
 | 🚫 纯粹调度  | 单局不用任何道具且送达 50+ |
 | 🕸️ 线路编织者 | 单局建立 10 条线路         |
+| 🎯 极简主义  | ≤3 条线路送达 100 名乘客   |
+| 🕸️ 蜘蛛网    | 单局建立 20 条线路         |
+| 🚀 高效调度  | 5 分钟内送达 200 名乘客    |
 | ⏰ 持久战    | 单局存活 5 分钟            |
 | 🕐 马拉松    | 单局存活 10 分钟           |
 | ⚡ 闪电通关  | 3 分钟内送达 50+           |
@@ -197,10 +200,10 @@ agenttrain/
 │  │  ├─ camera.ts       # 摄像机（缩放/平移大地图）
 │  │  ├─ difficulty.ts   # 难度档（简单/普通/困难/专家）参数表
 │  │  ├─ highscore.ts    # localStorage 最高分（按难度档，四档）
-│  │  ├─ achievements.ts # ★ 成就系统（22 个）+ 注册表
+│  │  ├─ achievements.ts # ★ 成就系统（24 个）+ resetAchievements 重置进度
 │  │  ├─ stats.ts        # 本局统计汇总（效率/最长线路/完成度）
 │  │  ├─ audio.ts        # 零依赖 Web Audio 音效合成（8 种）
-│  │  ├─ shapes.ts       # 形状 → 展示字符（统一映射）
+│  │  ├─ shapes.ts       # 形状 → 展示字符 + isShape/parseShape/shapeFromGlyph 公共 API
 │  │  ├─ persist.ts      # 游戏进度存档（刷新可续局）
 │  │  └─ tutorial.ts     # 新手教程 + 暂停菜单布局
 │  └─ ai/
@@ -248,17 +251,18 @@ agenttrain/
 ## 🧪 测试与质量
 
 ```bash
-npm test           # node:test 单测（rng / geometry / simulation）
+npm test           # node:test 单测（rng / geometry / simulation / audio / ...）
 npm run type-check # TypeScript 严格类型检查
 npm run lint       # ESLint
 npm run format     # Prettier 格式化
 ```
 
-测试覆盖（316 用例）：随机数可复现与区间、沿线定位/点段距离、建线/延伸/删除、装卸客加分、
+测试覆盖（821 用例，41 文件）：随机数可复现与区间、沿线定位/点段距离、建线/延伸/删除、装卸客加分、
 过载判负精确帧数与多站点同时满载、满载-清空-再满载恢复、剧本事件调度与同时刻多触发、
 surge 事件乘客翻倍、稀有形状解锁时机（30s/60s）、6 种道具效果/持续/刷新叠加/冲突、
-四档难度差异化与升降档、22 个成就解锁边界与注册表完整性、本局统计派生与格式化、
-AI 剧本解析容错、顾问建议映射、自动驾驶工具包装。
+四档难度差异化与升降档、24 个成就解锁边界与注册表完整性（含 efficiency-ace 高效调度 + resetAchievements）、
+本局统计派生与格式化、AI 剧本解析容错、顾问建议映射（parseShape 重构回归）、自动驾驶工具包装、
+音效合成参数（oscillator 数/频率/ADSR 包络）、形状映射/逆映射、持久化错误路径降级（隐私模式/配额满/损坏 JSON）。
 
 ## 📜 命令一览
 
@@ -270,7 +274,7 @@ AI 剧本解析容错、顾问建议映射、自动驾驶工具包装。
 | `npm run build`                   | 类型检查 + 生产构建到 `dist/`         |
 | `npm run preview`                 | 预览生产构建                          |
 | `npm run type-check`              | `tsc --noEmit`                        |
-| `npm test`                        | 运行单元测试（316 个）                |
+| `npm test`                        | 运行单元测试（821 个）                |
 | `npm run lint` / `lint:fix`       | ESLint 检查 / 自动修复                |
 | `npm run format` / `format:check` | Prettier 格式化 / 检查                |
 

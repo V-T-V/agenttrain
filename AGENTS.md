@@ -24,9 +24,9 @@ Mini Metro 风的**火车调度小游戏**。画线连接站点，让列车把�
 - **AI 层**（src/ai/）：advisor（顾问）/ autopilot（自动驾驶）/ client / scenario / tools / types
 - **AI 后端**（server/）：index.ts + env.ts + retry.ts，autopilot 推理服务
 - **渲染/输入**（src/）：main.ts / render.ts / input.ts
-- **测试 33 个文件 / 563 个用例**（全绿）：simulation(+overload+boarding+edge+train-motion+helpers) / events(+deep+sequence) / geometry / powerups(+deep+effects) / rng / scenario / advisor / ai-advisor-autopilot-edge / persist / camera / difficulty / highscore / tutorial / specials / world / server(+http) / render-smoke / achievements / stats / registry / congestion / error-hardening / lineStrategy / simulation-train-motion
+- **测试 41 个文件 / 821 个用例**（全绿）：simulation(+overload+boarding+edge+train-motion+helpers) / events(+deep+sequence) / geometry / powerups(+deep+effects) / rng / scenario(+normalize) / advisor(+deep) / ai-advisor-autopilot-edge / autopilot-deep / persist / camera / difficulty / highscore / tutorial(+deep) / specials / world / server(+http) / render-smoke / achievements(+efficiency) / stats / registry / congestion / error-hardening(+paths-deep) / lineStrategy / simulation-train-motion / simulation-overload / audio-deep / shapes-deep / error-paths-deep
 
-### 深度推进记录（deep-r1 ~ deep-r8）
+### 深度推进记录（deep-r1 ~ deep-r8 / r6-d1 ~ r6-d8）
 - **r1**: 基线确认 461 用例 + 读 AGENTS.md
 - **r2**: simulation 乘客上车/可达性/容量 11 用例
 - **r3**: simulation 公共辅助 + 成就精确边界 23 用例
@@ -35,6 +35,16 @@ Mini Metro 风的**火车调度小游戏**。画线连接站点，让列车把�
 - **r6**: 修 AI 顾问 modeTarget 建议 + 4 用例 + type-check 清理
 - **r7**: 新增 minimalist/sprawl 网络结构型成就 + 10 用例
 - **r8**: server/index.ts 条件 listen（可 import 不阻塞）+ readBody/sendJson 9 用例 + error-hardening 275 行加固测试
+
+**第六轮（r6-d1 ~ r6-d8，基线 563 → 821 用例）：**
+- **d1**: scenario normalizeEvent/normalizeScenario/parseScenario 深层边界 32 用例（at 缺省/越界/minAt 抬升/duration 夹紧/slow 无 shape/strike 缺 shape rng 兜底/事件截断/全非法/NaN/字符串数字）
+- **d2**: AI 顾问 askAdvice 异步链路 + serializeSnapshot/countTargets 深层 + parseAdvice 边界 + mockAdvice + lineStrategyAdvice 34 用例
+- **d3**: 自动驾驶 buildAutopilotTools 内部 schema/findStationByShape/findExtendableLine + autopilotTick + mockAutopilot + 工具闭包 28 用例
+- **d4**: 教程与暂停菜单深层 36 用例（markTutorialSeen/shouldShowTutorial/TUTORIAL_TEXT 完整性/nextTutorialStep/pauseMenuLayout 数学/pauseMenuHitTest）
+- **d5**: **音效系统 audio.ts 深层 44 用例**（此前 0% 覆盖）—— stub AudioContext 单例 + setMuted/isMuted + muted 静默 + 各 sfx oscillator 数/频率/type + tone ADSR 包络参数 + 13 不变式（freq 严格递增递减/delay 精确/duration 反推/muted 隔离/unlock 幂等）
+- **d6**: **成就系统新功能**——efficiency-ace 高效调度成就（≤300s 送达 200，区别于 speedrun 仅 50+）+ resetAchievements() 重置进度 API + 19 用例
+- **d7**: **shapes.ts 新增公共 API**（isShape 类型守卫/parseShape 安全转换/shapeFromGlyph 逆映射/shapeCount）+ DRY 重构 advisor.ts 删除私有 asShape 改用 parseShape + shapes-deep 30 用例（含 parseAdvice 重构回归）
+- **d8**: 持久化层错误路径深层 35 用例——可抛错 localStorage stub + highscore clamp 细粒度边界（NaN/Infinity/负数/字符串/布尔/数组）+ persist loadGame 细粒度损坏 + saveGame/clearSave/resetAchievements 抛错静默降级
 
 `simulation.ts` 确认：line 47 `export function step(state, dt, rng): GameState`——纯函数式状态步进，不 import DOM。
 
@@ -46,12 +56,12 @@ Mini Metro 风的**火车调度小游戏**。画线连接站点，让列车把�
 | powerups（6 道具 + 连击） | ✅ 完成 | powerups + powerups-deep（时长/刷新/冲突） |
 | events（剧本调度） | ✅ 完成（已修 pumpEvents 漏触发 bug） | events + events-deep（同时刻/surge 翻倍/形状解锁） |
 | difficulty（四档） | ✅ 完成（新增 Expert） | difficulty（四档差异化） |
-| achievements（22 个） | ✅ 完成（新增 expert 成就） | achievements（边界 + 注册表完整性） |
+| achievements（24 个） | ✅ 完成（新增 efficiency-ace 高效调度 + resetAchievements） | achievements（边界 + 注册表完整性 + efficiency-ace + reset） |
 | stats（本局统计） | ✅ 完成（新增模块） | stats（效率/完成度/格式化） |
 | highscore（按档最高分） | ✅ 完成（四档 + 向后兼容） | highscore |
 | AI 层（advisor/autopilot/scenario） | ✅ 完成 | advisor + ai-advisor-autopilot-edge + scenario + server |
 | 渲染/输入 | ✅ 完成 | render-smoke |
-| persist / camera / tutorial / audio | ✅ 完成 | persist / camera / tutorial |
+| persist / camera / tutorial / audio / shapes | ✅ 完成 | persist / camera / tutorial / audio-deep / shapes-deep（新增 isShape/parseShape/shapeFromGlyph 公共 API） |
 
 ## 技术栈与架构
 
@@ -79,7 +89,7 @@ npm run dev          # 仅 vite（游戏前端）
 npm run dev:all      # concurrently：vite + server（启用 AI 顾问/自动驾驶）
 npm run server       # 仅 AI 后端
 npm run build        # 生产构建
-npm test             # 316 个测试用例
+npm test             # 821 个测试用例
 npm run type-check / lint / format
 ```
 
