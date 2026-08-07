@@ -5,7 +5,7 @@
 import type { AIClient, Message } from './types.ts';
 import type { GameState, Shape } from '../game/types.ts';
 import { describeActive } from '../game/events.ts';
-import { shapeGlyph } from '../game/shapes.ts';
+import { parseShape, shapeGlyph } from '../game/shapes.ts';
 import { summarizeStrategy, evaluateLine } from '../game/lineStrategy.ts';
 import {
   congestionSnapshotLine as formatCongestionLine,
@@ -118,8 +118,8 @@ export function parseAdvice(text: string, state: GameState): Advice {
   const o = (obj ?? {}) as Record<string, unknown>;
   const action: AdviceAction = isAction(o.action) ? (o.action as AdviceAction) : 'observe';
 
-  const fromShape = asShape(o.fromShape);
-  const toShape = asShape(o.toShape);
+  const fromShape = parseShape(o.fromShape);
+  const toShape = parseShape(o.toShape);
   const comment =
     typeof o.comment === 'string' && o.comment.trim().length > 0
       ? clampStr(o.comment.trim(), 4, 30)
@@ -226,11 +226,6 @@ function extractJson(text: string): string | null {
 
 function isAction(v: unknown): boolean {
   return v === 'create' || v === 'extend' || v === 'remove' || v === 'observe';
-}
-
-function asShape(v: unknown): Shape | undefined {
-  const shapes: Shape[] = ['circle', 'triangle', 'square', 'diamond', 'star'];
-  return shapes.includes(v as Shape) ? (v as Shape) : undefined;
 }
 
 function clampStr(v: string, min: number, max: number): string {
