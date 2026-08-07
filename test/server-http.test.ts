@@ -54,13 +54,11 @@ test('readBody: 多块拼接正确', async () => {
 
 test('sendJson: 写入正确状态码和 JSON 体', () => {
   let capturedStatus = 0;
-  let capturedHeaders: Record<string, string> = {};
   let capturedBody = '';
 
   const mockRes = {
-    writeHead(status: number, headers: Record<string, string>) {
+    writeHead(status: number, _headers: Record<string, string>) {
       capturedStatus = status;
-      capturedHeaders = headers;
     },
     end(body: string) {
       capturedBody = body;

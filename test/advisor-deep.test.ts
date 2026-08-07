@@ -12,7 +12,7 @@ import {
 } from '../src/ai/advisor.ts';
 import { createInitialState } from '../src/game/state.ts';
 import { createLine } from '../src/game/simulation.ts';
-import { sample, type CongestionHistory } from '../src/game/congestion.ts';
+import { sample } from '../src/game/congestion.ts';
 import type { GameState, LineColor, Shape, Station } from '../src/game/types.ts';
 import type { AIClient, Message } from '../src/ai/types.ts';
 

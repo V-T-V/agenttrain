@@ -166,7 +166,7 @@ function scoreBreakdown(args: {
   expandableHead: boolean;
   expandableTail: boolean;
 }): LineScore['breakdown'] {
-  const { stopCount, shapeCoverage, avgLoadPerStop, congestedStops, trainUtilization, trainCount, expandableHead, expandableTail } = args;
+  const { stopCount, shapeCoverage, congestedStops, trainUtilization, trainCount, expandableHead, expandableTail } = args;
 
   // 效率：列车满载率（0-1）映射到 0-100；无列车则 0。
   const efficiency = clamp01(trainUtilization) * 100;

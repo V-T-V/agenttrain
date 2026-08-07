@@ -23,7 +23,7 @@ import {
 } from '../src/game/simulation.ts';
 import { usePowerUp } from '../src/game/powerups.ts';
 import { INITIAL_STATIONS } from '../src/game/config.ts';
-import type { GameState, Station } from '../src/game/types.ts';
+import type { GameState } from '../src/game/types.ts';
 
 function runningState(seed = 1): GameState {
   const s = createInitialState(seed);

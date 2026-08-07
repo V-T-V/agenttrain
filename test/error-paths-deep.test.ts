@@ -451,7 +451,7 @@ test('achievements：removeItem 抛错时 resetAchievements 返回 false', () =>
 });
 
 test('achievements：removeItem 正常时 resetAchievements 返回 true', () => {
-  const { s, restore } = withThrowy();
+  const { restore } = withThrowy();
   try {
     const ok = resetAchievements();
     assert.equal(ok, true);

@@ -10,7 +10,6 @@ import {
   evaluateAllLines,
   evaluateLine,
   summarizeStrategy,
-  type LineScore,
 } from '../src/game/lineStrategy.ts';
 import type { GameState, Station, Train, Line, LineColor, Shape } from '../src/game/types.ts';
 
