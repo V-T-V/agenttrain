@@ -18,7 +18,19 @@ Mini Metro 风的**火车调度小游戏**。画线连接站点，让列车把�
 
 ## 当前情况（Status）
 
-**较完整的可玩原型。** 游戏核心 + AI 层都落地。
+**较完整的可玩原型。** 游戏核心 + AI 层都落地。994 测试全过。
+
+**R14 深度推进已完成**（821→994，+173 测试，3 个新功能模块 + 7 个深层测试文件）：
+- D1 `geometry-deep`：geometry.ts 全纯函数（38 例）——dist/lerpVec2/positionAlong/totalLength/closestPointOnSegment
+- D2 `difficulty-edge`：难度系统单调性（20 例）——四档参数递减 + bumpUp/Down 互逆
+- D3 `stats-deep`：结算统计（26 例）——formatDuration/Efficiency/Completion + computeRunStats 派生
+- D4 `line-strategy-deep`：线路评估（15 例）——evaluateAllLines 降序 + summarizeStrategy 建议
+- D5 **新增 pathScore.ts**：路径规划评分器（19 例）——scoreProposedPath/comparePaths/pathFeasibility
+- D6 **新增 trafficFlow.ts**：交通流量分析器（20 例）——computeLineFlow/analyzeTrafficFlow/瓶颈识别
+- D7 **新增 gameBalance.ts**：平衡性评估器（18 例）——evaluateBalance 四级评级/recommendDifficulty
+- D8 `r14-integration`：三新模块综合集成（5 例）
+- D9 `event-registry-deep`：事件注册表（12 例）——isEventActive shape 匹配/describeEvents
+- D10 文档同步
 
 - **游戏核心**（src/game/，18 个文件）：simulation / state / types / config / events / eventRegistry / geometry / powerups / powerupRegistry / difficulty / highscore / achievements / stats / shapes / camera / audio / persist / tutorial
 - **AI 层**（src/ai/）：advisor（顾问）/ autopilot（自动驾驶）/ client / scenario / tools / types
